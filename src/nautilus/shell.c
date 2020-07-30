@@ -37,6 +37,9 @@
 
 #define CHAR_TO_IDX(k) (tolower((k)) - 'a')
 
+// delete after finish debugging
+#define NAUT_CONFIG_ASPACES 1
+
 struct shell_op {
   char name[SHELL_OP_NAME_LEN];
   char **script;
@@ -705,7 +708,234 @@ shell (void * in, void ** out)
         ERROR("Cannot name shell's thread\n");
         return;
     }
+// ENABLE THIS CODE TO START TO TEST YOUR PAGING IMPLEMENTATION
+#ifdef NAUT_CONFIG_ASPACES
+    nk_aspace_characteristics_t c;
 
+    if (nk_aspace_query("paging",&c)) {
+	nk_vc_printf("failed to find paging implementation\n");
+	goto vc_setup;
+    }
+    
+    // create a new address space for this shell thread
+    nk_aspace_t *mas = nk_aspace_create("paging",op->name,&c);
+    
+
+    if (!mas) {
+	nk_vc_printf("failed to create new address space\n");
+	goto vc_setup;
+    }
+
+
+    nk_aspace_region_t r, r1, r2;
+    // create a 1-1 region mapping all of physical memory
+    // so that the kernel can work when that thread is active
+    r.va_start = 0;
+    r.pa_start = 0;
+    r.len_bytes = 0x100000000UL;  // first 4 GB are mapped
+    // set protections for kernel
+    // use EAGER to tell paging implementation that it needs to build all these PTs right now
+    r.protect.flags = NK_ASPACE_READ | NK_ASPACE_WRITE | NK_ASPACE_EXEC | NK_ASPACE_PIN | NK_ASPACE_KERN | NK_ASPACE_EAGER;
+
+    // now add the region
+    // this should build the page tables immediately
+    if (nk_aspace_add_region(mas,&r)) {
+        nk_vc_printf("failed to add initial eager region to address space\n");
+        goto vc_setup;
+    }
+
+    
+    r1.va_start = (void*) 0x100000000UL;
+    r1.pa_start = 0;
+    r1.len_bytes = 0x100000000UL;  // first 4 GB are mapped
+    // set protections for kernel
+    // use EAGER to tell paging implementation that it needs to build all these PTs right now
+    r1.protect.flags = NK_ASPACE_READ | NK_ASPACE_WRITE | NK_ASPACE_EXEC | NK_ASPACE_PIN | NK_ASPACE_KERN | NK_ASPACE_EAGER;
+
+    // // now add the region
+    // // this should build the page tables immediately
+    if (nk_aspace_add_region(mas,&r1)) {
+        nk_vc_printf("failed to add initial eager region to address space\n");
+        goto vc_setup;
+    }
+
+    // // now we will remap the kernel starting at the following address
+    // // this is the start of the "canonical upper half", which is
+    // // where pre-meltown/spectre kernels used to place themselves
+    
+    r2.va_start = (void*) 0xffff800000000000UL;
+    r2.pa_start = 0;
+    r2.len_bytes = 0x100000000UL;  // first 4 GB are mapped
+    // set protections for kernel
+    // use EAGER to tell paging implementation that it needs to build all these PTs right now
+    r2.protect.flags = NK_ASPACE_READ | NK_ASPACE_WRITE | NK_ASPACE_EXEC | NK_ASPACE_PIN | NK_ASPACE_KERN;
+
+    // This one is lazily implemented
+    if (nk_aspace_add_region(mas,&r2)) {
+        nk_vc_printf("failed to add secondary lazy region to address space\n");
+        goto vc_setup;
+    }
+
+    //nk_aspace_dump_aspaces(1);
+
+    if (nk_aspace_move_thread(mas)) {
+	nk_vc_printf("failed to move shell thread to new address space\n");
+	goto vc_setup;
+    }
+    write_cr0(read_cr0() | (1<<16));
+
+    nk_vc_printf("Survived moving thread into its own address space\n");
+    
+
+    if (memcmp(r.va_start, r1.va_start, 0x100000)) {
+	nk_vc_printf("Weird, low-mapped and high-mapped 4 GB differ...\n");
+    goto vc_setup;
+    } 	
+
+    nk_vc_printf("Survived memory comparison of two eager mapped copies\n");
+
+    // // start reading the kernel from address 0xffff80000.....+ 1 GB
+    // // should be identical to starting from address 1 MB
+    // // also, this will fault in pages as we go 
+    if (memcmp(r.va_start, r2.va_start, 0x100000)) {
+	    nk_vc_printf("Weird, low-mapped and high-mapped  differ...\n");
+        goto vc_setup;
+    } 	
+
+    nk_vc_printf("Survived memory comparison of one eager and one lazy copy\n");
+    
+    // // test case for move region
+    nk_aspace_region_t r3, r4, r5;
+    r3.va_start = (void*) 0x200000000UL;
+    r3.pa_start = (void*) 0x200000000UL;
+    r3.len_bytes = 0x100000000UL;  
+    // set protections for kernel
+    // use EAGER to tell paging implementation that it needs to build all these PTs right now
+    r3.protect.flags = NK_ASPACE_READ | NK_ASPACE_WRITE | NK_ASPACE_EXEC | NK_ASPACE_PIN | NK_ASPACE_KERN | NK_ASPACE_EAGER;
+
+    // now add the region
+    // this should build the page tables immediately
+    if (nk_aspace_add_region(mas,&r3)) {
+        nk_vc_printf("failed to add eager region r3"
+                    "(va=%016lx pa=%016lx len=%lx, prot=%lx)" 
+                    "to address space\n",
+                    r3.va_start, r3.pa_start, r3.len_bytes, r3.protect.flags    
+        );
+        goto vc_setup;
+    }
+
+
+    r4.va_start = (void*) 0x300000000UL;
+    r4.pa_start = (void*) 0x200000000UL;
+    r4.len_bytes = 0x100000000UL;
+    r4.protect.flags = NK_ASPACE_READ | NK_ASPACE_WRITE | NK_ASPACE_EXEC | NK_ASPACE_PIN | NK_ASPACE_KERN ;
+
+
+    if (nk_aspace_add_region(mas,&r4)) {
+        nk_vc_printf("failed to add eager region r4"
+                    "(va=%016lx pa=%016lx len=%lx, prot=%lx)" 
+                    "to address space\n",
+                    r4.va_start, r4.pa_start, r4.len_bytes, r4.protect.flags    
+        );
+        goto vc_setup;
+    }
+
+    if (memcmp(r3.va_start, r4.va_start, 0x10000)) {
+	    nk_vc_printf("Weird, r3 and r4  differ...\n");
+    }
+    
+    nk_vc_printf("Survived memory comparison of r3 and r4\n");
+
+
+    r5.va_start = (void*) r4.va_start;
+    r5.pa_start = (void*) 0;
+    r5.len_bytes = r4.len_bytes;
+    r5.protect.flags = r4.protect.flags;
+
+    nk_aspace_move_region(mas, &r4, &r5);
+
+    if (memcmp((void*) r.va_start , (void*) r5.va_start, 0x10000)) {
+	    nk_vc_printf("Weird, r and r5  differ...\n");
+        goto vc_setup;
+    }
+    
+    nk_vc_printf("Survived memory comparison of r and r5\n");
+    
+
+    // expect to fail
+    // if (memcmp(r3.va_start, r4.va_start, 0x10000)) {
+	//     nk_vc_printf("Weird, r3 and r4  differ...\n");
+    //     goto vc_setup;
+    // }
+    // nk_vc_printf("Survived memory comparison of r3 and r4\n");
+
+    
+    // test case for remove region
+    // if (memcmp((void*) r4.va_start , (void*) r4.va_start, 0x10000)) {
+	//     nk_vc_printf("Reference r4 at %16lx FAIL\n", r4.va_start);
+    // }
+    // else {
+	//     nk_vc_printf("Reference r4 at %16lx PASS\n", r4.va_start);
+    // }
+    
+    if (nk_aspace_remove_region(mas,&r5)) {
+        nk_vc_printf("failed to add eager region r5"
+                    "(va=%016lx pa=%016lx len=%lx, prot=%lx)" 
+                    "to address space\n",
+                    r5.va_start, r5.pa_start, r5.len_bytes, r5.protect.flags    
+        );
+        goto vc_setup;
+    }
+
+    nk_vc_printf("Survived region removal of r5\n");
+    // should fail
+    // if (memcmp((void*) r5.va_start , (void*) r5.va_start, 0x10000)) {
+	//     nk_vc_printf("Reference r5 at %16lx FAIL\n", r5.va_start);
+    // }
+    // else {
+	//     nk_vc_printf("Reference r5 at %16lx PASS\n", r5.va_start);
+    // }
+    
+
+    
+    // // test case for protection region
+    
+    // 0xffff800000000000UL
+
+    nk_aspace_region_t reg;
+    reg.va_start = (void*) 0x1000000000UL; // 2^6 GB
+    reg.pa_start = reg.va_start;
+    reg.len_bytes = 0x10000UL;  // 2^6 KB
+    reg.protect.flags = NK_ASPACE_READ  | NK_ASPACE_EXEC | NK_ASPACE_PIN | NK_ASPACE_KERN ;
+    //  reg.protect.flags =  NK_ASPACE_WRITE | NK_ASPACE_EXEC | NK_ASPACE_PIN | NK_ASPACE_KERN | NK_ASPACE_EAGER;
+    
+    if (nk_aspace_add_region(mas, &reg)) {
+        nk_vc_printf("failed to add eager region reg"
+                    "(va=%016lx pa=%016lx len=%lx, prot=%lx)" 
+                    "to address space\n",
+                    reg.va_start, reg.pa_start, reg.len_bytes, reg.protect.flags    
+        );
+	    goto vc_setup;
+    }
+    
+    nk_vc_printf("Survived region adding region reg\n");
+    
+
+    // memcmp((void*)(reg.va_start),(void*)(reg.va_start), 0x4000);
+    // memcpy((void*)(reg.va_start),(void*)0x0, 0x4000);
+    // nk_vc_printf("Allowable write done!\n");
+
+    nk_aspace_protection_t prot;
+    prot.flags = NK_ASPACE_READ  | NK_ASPACE_WRITE | NK_ASPACE_EXEC | NK_ASPACE_PIN | NK_ASPACE_KERN ;
+    // nk_aspace_protect(mas, &reg, &prot);
+    nk_aspace_protect_region(mas, &reg, &prot);
+
+    memcpy((void*)(reg.va_start), (void*)0x0, 0x4000);
+    nk_vc_printf("survived writing to region with new added writing access\n");
+    
+#endif
+    
+ vc_setup:
     if (nk_bind_vc(get_cur_thread(), vc)) { 
         ERROR("Cannot bind virtual console for shell\n");
         return;
