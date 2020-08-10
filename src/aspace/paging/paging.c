@@ -819,9 +819,7 @@ static struct nk_aspace * create(char *name, nk_aspace_characteristics_t *c)
     spinlock_init(&p->lock);
 
     // initialize your region set data structure here!
-    mm_llist_t *mylist = (mm_llist_t *) malloc(sizeof(mm_llist_t));
-    mm_llist_init(mylist);
-    p->paging_mm_struct = &mylist->super;
+    p->paging_mm_struct = mm_llist_create();
 
     // create an initial top-level page table (PML4)
     if(paging_helper_create(&(p->cr3)) == -1){

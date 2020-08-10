@@ -10,4 +10,4 @@ typedef struct mm_llist {
     mm_llist_node_t * region_head;
 } mm_llist_t;
 
-int mm_llist_init(mm_llist_t * llist);
+mm_struct_t * mm_llist_create();
