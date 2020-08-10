@@ -104,7 +104,7 @@ nk_aspace_region_t * virtual_update_region (
 
 
 
-int mm_struct_init(mm_struct_t * self);
+mm_struct_t * mm_struct_create();
 
 
 #define VA_CHECK 1

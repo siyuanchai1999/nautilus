@@ -66,6 +66,19 @@ int mm_struct_init(mm_struct_t * self) {
     return 0;
 }
 
+mm_struct_t * mm_struct_create() {
+    mm_struct_t *my_struct = (mm_struct_t *) malloc(sizeof(mm_struct_t));
+
+    if (! my_struct) {
+        ERROR_PRINT("cannot allocate a linked list data structure to track region mapping\n");
+        return 0;
+    }
+
+    mm_struct_init(my_struct);
+
+    return my_struct;
+}
+
 int mm_insert(mm_struct_t * self, nk_aspace_region_t * region) {
     return (* self->vptr->insert) (self, region);
 }

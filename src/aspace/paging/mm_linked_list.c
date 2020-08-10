@@ -1,11 +1,16 @@
 #include "mm_linked_list.h"
 #include <nautilus/nautilus.h>
 
-
 int mm_llist_insert(mm_struct_t * self, nk_aspace_region_t * region) {
     mm_llist_t * llist = (mm_llist_t * ) self;
 
     mm_llist_node_t * newhead = (mm_llist_node_t *) malloc(sizeof(mm_llist_node_t));
+    
+    if (! newhead) {
+        ERROR_PRINT("cannot allocate a node for linked list data structure to track region mapping\n");
+        return 0;
+    }
+    
     newhead->region = *region;
     newhead->next_llist_node = llist->region_head;
 
@@ -144,6 +149,11 @@ int mm_llist_init(mm_llist_t * llist) {
     mm_struct_init(& (llist->super));
     
     vtbl * vptr = (vtbl *) malloc (sizeof(vtbl));
+    if (! vptr) {
+        ERROR_PRINT("cannot allocate a virtual function table for linked list\n");
+        return 0;
+    }
+
     vptr->insert = &mm_llist_insert;
     vptr->show = &mm_llist_show;
     vptr->check_overlap = &mm_llist_check_overlap;
@@ -157,5 +167,18 @@ int mm_llist_init(mm_llist_t * llist) {
     llist->region_head = NULL;
 
     return 0;
+}
+
+mm_struct_t * mm_llist_create() {
+    mm_llist_t *mylist = (mm_llist_t *) malloc(sizeof(mm_llist_t));
+
+    if (! mylist) {
+        ERROR_PRINT("cannot allocate a linked list data structure to track region mapping\n");
+        return 0;
+    }
+
+    mm_llist_init(mylist);
+
+    return &mylist->super;
 }
 
