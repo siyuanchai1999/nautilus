@@ -121,8 +121,9 @@ nk_aspace_region_t * mm_llist_find_reg_at_addr (mm_struct_t * self, addr_t addre
     }
     
     return NULL;
-
 }
+
+
 
 nk_aspace_region_t * mm_llist_update_region (
     mm_struct_t * self, 
