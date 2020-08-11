@@ -9,7 +9,7 @@ struct mm_struct_vtbl;
 typedef struct mem_map_struct
 {
     struct mm_struct_vtbl *vptr;
-    unsigned int size;
+    uint32_t size;
 } mm_struct_t;
 
 /*
