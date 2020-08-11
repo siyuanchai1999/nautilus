@@ -44,7 +44,9 @@
 #include <nautilus/aspace.h>
 
 #include "paging_helpers.h"
+#include "mm_rb_tree.h"
 #include "mm_linked_list.h"
+
 // #include "node_struct.h"
 // #include "test.h"
 //
@@ -505,7 +507,7 @@ static int move_region(void *state, nk_aspace_region_t *cur_region, nk_aspace_re
     if (!reg_ptr) {
         DEBUG(
             "region to update"
-            "(va=%016lx pa=%016lx len=%lx, prot=%lx) not FOUND", 
+            "(va=%016lx pa=%016lx len=%lx, prot=%lx) meets trouble", 
             cur_region->va_start, 
             cur_region->pa_start, 
             cur_region->len_bytes,
