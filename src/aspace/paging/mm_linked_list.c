@@ -16,6 +16,7 @@ int mm_llist_insert(mm_struct_t * self, nk_aspace_region_t * region) {
 
     llist->region_head = newhead;
 
+    llist->super.size = llist->super.size + 1;
     return 0;
 }
 
@@ -64,7 +65,9 @@ int mm_llist_remove(mm_struct_t * self, nk_aspace_region_t * region, uint8_t che
             } else {
                 llist->region_head = curr_node->next_llist_node;
             }
+            
             free(curr_node);
+            llist->super.size = llist->super.size - 1;
             return 1;
         }
 
