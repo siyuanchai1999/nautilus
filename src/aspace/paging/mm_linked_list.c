@@ -36,22 +36,6 @@ void mm_llist_show(mm_struct_t * self) {
     }
 }
 
-int overlap_helper(nk_aspace_region_t * regionA, nk_aspace_region_t * regionB){
-    void * VA_start_A = regionA->va_start;
-    void * VA_start_B = regionB->va_start;
-    void * VA_end_A = regionA->va_start + regionA->len_bytes;
-    void * VA_end_B = regionB->va_start + regionB->len_bytes;
-
-    if (VA_start_A <= VA_start_B && VA_start_B < VA_end_A) {
-        return 1;
-    }
-    if (VA_start_B <= VA_start_A && VA_start_A < VA_end_B) {
-        return 1;
-    }
-
-    return 0;
-}
-
 nk_aspace_region_t * mm_llist_check_overlap(mm_struct_t * self, nk_aspace_region_t * region){
     mm_llist_t * llist = (mm_llist_t * ) self;
     mm_llist_node_t * curr_node = llist->region_head;
@@ -147,22 +131,14 @@ nk_aspace_region_t * mm_llist_update_region (
 
 int mm_llist_init(mm_llist_t * llist) {
     mm_struct_init(& (llist->super));
-    
-    vtbl * vptr = (vtbl *) malloc (sizeof(vtbl));
-    if (! vptr) {
-        ERROR_PRINT("cannot allocate a virtual function table for linked list\n");
-        return 0;
-    }
 
-    vptr->insert = &mm_llist_insert;
-    vptr->show = &mm_llist_show;
-    vptr->check_overlap = &mm_llist_check_overlap;
-    vptr->remove = &mm_llist_remove;
-    vptr->contains = &mm_llist_contains;
-    vptr->find_reg_at_addr = &mm_llist_find_reg_at_addr;
-    vptr->update_region = &mm_llist_update_region;
-
-    llist->super.vptr = vptr;
+    llist->super.vptr->insert = &mm_llist_insert;
+    llist->super.vptr->show = &mm_llist_show;
+    llist->super.vptr->check_overlap = &mm_llist_check_overlap;
+    llist->super.vptr->remove = &mm_llist_remove;
+    llist->super.vptr->contains = &mm_llist_contains;
+    llist->super.vptr->find_reg_at_addr = &mm_llist_find_reg_at_addr;
+    llist->super.vptr->update_region = &mm_llist_update_region;
 
     llist->region_head = NULL;
 
@@ -177,7 +153,9 @@ mm_struct_t * mm_llist_create() {
         return 0;
     }
 
+    // mm_llist_init(mylist);
     mm_llist_init(mylist);
+
 
     return &mylist->super;
 }

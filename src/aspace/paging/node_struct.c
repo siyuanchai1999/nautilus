@@ -52,6 +52,11 @@ nk_aspace_region_t * virtual_update_region (
 int mm_struct_init(mm_struct_t * self) {
     vtbl *vptr = (vtbl *) malloc (sizeof(vtbl));
     
+    if (! vptr) {
+        ERROR_PRINT("cannot allocate a virtual function table to track region mapping\n");
+        return 0;
+    }
+
     vptr->insert = &virtual_insert;
     vptr->show = &virtual_show;
     vptr->check_overlap = &virtual_check_overlap;
@@ -67,10 +72,12 @@ int mm_struct_init(mm_struct_t * self) {
 }
 
 mm_struct_t * mm_struct_create() {
+
+    // should be called
     mm_struct_t *my_struct = (mm_struct_t *) malloc(sizeof(mm_struct_t));
 
     if (! my_struct) {
-        ERROR_PRINT("cannot allocate a linked list data structure to track region mapping\n");
+        ERROR_PRINT("cannot allocate a abstract structure to track region mapping\n");
         return 0;
     }
 
@@ -150,4 +157,20 @@ int region_update(nk_aspace_region_t * dest, nk_aspace_region_t * src, uint8_t e
     }
 
     return 0;
-}   
+} 
+
+int overlap_helper(nk_aspace_region_t * regionA, nk_aspace_region_t * regionB){
+    void * VA_start_A = regionA->va_start;
+    void * VA_start_B = regionB->va_start;
+    void * VA_end_A = regionA->va_start + regionA->len_bytes;
+    void * VA_end_B = regionB->va_start + regionB->len_bytes;
+
+    if (VA_start_A <= VA_start_B && VA_start_B < VA_end_A) {
+        return 1;
+    }
+    if (VA_start_B <= VA_start_A && VA_start_A < VA_end_B) {
+        return 1;
+    }
+
+    return 0;
+}

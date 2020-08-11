@@ -1,3 +1,7 @@
+#ifndef __NODE_STUCT_H__
+#define __NODE_STUCT_H__
+
+
 #include <nautilus/aspace.h>
 // #include <nautilus/paging.h>
 struct mm_struct_vtbl;
@@ -105,7 +109,7 @@ nk_aspace_region_t * virtual_update_region (
 
 
 mm_struct_t * mm_struct_create();
-
+int mm_struct_init(mm_struct_t * self);
 
 #define VA_CHECK 1
 #define PA_CHECK 2
@@ -125,3 +129,10 @@ int region_equal(nk_aspace_region_t * regionA, nk_aspace_region_t * regionB, uin
     we going to have dest->pa_start = src->pa_start and dest->protect = src->protect
 */
 int region_update(nk_aspace_region_t * dest, nk_aspace_region_t * src, uint8_t eq_flags);
+
+/*
+    check if regionA and regionB overlap. 
+    If so return 1, ow. 0
+*/
+int overlap_helper(nk_aspace_region_t * regionA, nk_aspace_region_t * regionB);
+#endif
