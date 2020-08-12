@@ -1,9 +1,12 @@
 #include "mm_rb_tree.h"
 #include <nautilus/nautilus.h>
 
-#define ERROR(fmt, args...) ERROR_PRINT("aspace-paging-rbtree: " fmt, ##args)
-#define DEBUG(fmt, args...) DEBUG_PRINT("aspace-paging-rbtree: " fmt, ##args)
-#define INFO(fmt, args...)   INFO_PRINT("aspace-paging-rbtree: " fmt, ##args)
+#define ERROR_RB(fmt, args...) ERROR_PRINT("aspace-paging-rbtree: " fmt, ##args)
+#define DEBUG_RB(fmt, args...) DEBUG_PRINT("aspace-paging-rbtree: " fmt, ##args)
+#define INFO_RB(fmt, args...)   INFO_PRINT("aspace-paging-rbtree: " fmt, ##args)
+
+#define MALLOC_RB(n) ({void *__p = malloc(n); if (!__p) { ERROR_RB("Malloc failed\n"); panic("Malloc failed\n"); } __p;})
+
 /*
          |                    |   
          x                    y
@@ -131,11 +134,8 @@ int rb_tree_insert(mm_struct_t * self, nk_aspace_region_t * region) {
     mm_rb_node_t * curr = tree->root;
     mm_rb_node_t * parent = tree->NIL;
 
-    mm_rb_node_t * wrapper = (mm_rb_node_t *) malloc(sizeof(mm_rb_node_t));
-    if (!wrapper){
-        ERROR("cannot allocate a node for linked list data structure to track region mapping\n");
-        return -1;
-    }
+    mm_rb_node_t * wrapper = (mm_rb_node_t *) MALLOC_RB(sizeof(mm_rb_node_t));
+    
     wrapper->region = *region;
     
     while (curr != tree->NIL) {
@@ -570,12 +570,12 @@ nk_aspace_region_t * rb_tree_update_region (
     mm_rb_tree_t * tree = (mm_rb_tree_t *) self;
 
     if (!(eq_flag & VA_CHECK)) {
-        ERROR("rb tree expect to update regions with VA as the same!\n");
+        ERROR_RB("rb tree expect to update regions with VA as the same!\n");
         return NULL;
     }
 
     if (!(region_equal(cur_region, new_region, eq_flag))){
-        ERROR("rb tree expect to have the input region equal in terms of eq_flag!\n");
+        ERROR_RB("rb tree expect to have the input region equal in terms of eq_flag!\n");
         return NULL;
     }
 
@@ -601,7 +601,7 @@ int rb_tree_remove(mm_struct_t * self, nk_aspace_region_t * region, uint8_t chec
     mm_rb_tree_t * tree = (mm_rb_tree_t *) self;
 
     if (!(check_flags & VA_CHECK)) {
-        ERROR("rb tree expect to remove regions with VA_check flag set!\n");
+        ERROR_RB("rb tree expect to remove regions with VA_check flag set!\n");
         return 0;
     }
     mm_rb_node_t node;
@@ -628,7 +628,7 @@ nk_aspace_region_t* rb_tree_contains(
     mm_rb_tree_t * tree = (mm_rb_tree_t *) self;
 
     if (!(check_flags & VA_CHECK)) {
-        ERROR("rb tree expect to search regions with VA_check flag set!\n");
+        ERROR_RB("rb tree expect to search regions with VA_check flag set!\n");
         return NULL;
     }
 
@@ -656,11 +656,7 @@ int rb_comp_region(mm_rb_node_t * n1, mm_rb_node_t * n2) {
 }
 
 mm_rb_node_t * create_rb_NIL() {
-    mm_rb_node_t * nil = (mm_rb_node_t *) malloc(sizeof(mm_rb_node_t));
-    if (!nil) {
-        panic("Fail to create rb NIL node!\n");
-        return NULL;
-    }
+    mm_rb_node_t * nil = (mm_rb_node_t *) MALLOC_RB(sizeof(mm_rb_node_t));
 
     nil->color = BLACK;
     nil->parent = nil->left = nil->right = NULL;
@@ -670,11 +666,7 @@ mm_rb_node_t * create_rb_NIL() {
 }
 
 mm_struct_t * mm_rb_tree_create() {
-    mm_rb_tree_t * rbtree = (mm_rb_tree_t *) malloc(sizeof(mm_rb_tree_t));
-    if (!rbtree) {
-        ERROR("Fail to create rb tree!\n");
-        return NULL;
-    }
+    mm_rb_tree_t * rbtree = (mm_rb_tree_t *) MALLOC_RB(sizeof(mm_rb_tree_t));
 
     mm_struct_init(&rbtree->super);
     
