@@ -1,11 +1,8 @@
 #include "node_struct.h"
 
-
-
-#define NUM2COLOR(n) (((n) == BLACK) ? 'B' : 'R')
-#define NODE_STR_LEN 25
-#define NODE_STR_DETAIL_LEN (NODE_STR_LEN * 4)
-
+#define RB_TREE_CHECK_AFTER_TRAVERSAL 1
+#define MAX_DEPTH_LEVEL_ORDER_PRINT 6
+#define MAX_SIZE_INORDER_PRINT 20
 enum rb_tree_node_color {
     BLACK,
     RED
@@ -29,3 +26,4 @@ typedef struct rb_tree
 } mm_rb_tree_t;
 
 mm_struct_t * mm_rb_tree_create();
+int rb_tree_check(mm_struct_t * self);
