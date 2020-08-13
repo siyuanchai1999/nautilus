@@ -53,17 +53,13 @@ typedef struct splay_tree_key_s *splay_tree_key;
 // typedef struct mm_splay_tree_s *mm_splay_tree_t;
 // typedef struct mm_splay_tree_key_s *mm_splay_tree_key_t;
 
-typedef struct mm_splay_tree_key {
-  long key;
-}mm_splay_tree_key_t;
-
 #define attribute_hidden __attribute__ ((visibility ("hidden")))
 
-static inline int mm_splay_compare (mm_splay_tree_key_t * x, mm_splay_tree_key_t * y)
+static inline int mm_splay_compare (uint64_t x, uint64_t y)
 {
-  if (x->key==y->key) {
+  if (x==y) {
     return 0;
-  } else if (x->key<=y->key) {
+  } else if (x<y) {
     return -1;
   } else {
     return 1;
@@ -104,13 +100,13 @@ static inline int mm_splay_compare (mm_splay_tree_key_t * x, mm_splay_tree_key_t
 
 /* The nodes in the splay tree.  */
 typedef struct mm_splay_tree_node {
-  struct mm_splay_tree_key_t * key;
+  uint64_t key;
   /* The left and right children, respectively.  */
-  mm_splay_tree_node_t left;
-  mm_splay_tree_node_t right;
-
+  struct mm_splay_tree_node * left;
+  struct mm_splay_tree_node * right;
   nk_aspace_region_t region;
 }mm_splay_tree_node_t;
+
 
 /* The splay tree.  */
 typedef struct mm_splay_tree {
@@ -118,10 +114,13 @@ typedef struct mm_splay_tree {
   mm_splay_tree_node_t * root;
 } mm_splay_tree_t;
 
-typedef void (*mm_splay_tree_callback_t) (mm_splay_tree_key_t, void *);
+
+
+typedef void (*mm_splay_tree_callback_t) (uint64_t, void *);
 
 int mm_splay_tree_init(mm_splay_tree_t * splay_tree);
-
+mm_struct_t * mm_splay_tree_create();
+void mm_splay_tree_show(mm_struct_t *self);
 // extern mm_splay_tree_key_t* mm_splay_tree_lookup (splay_tree, splay_tree_key);
 // extern void mm_splay_tree_insert (mm_splay_tree_t, mm_splay_tree_node_t);
 // extern void mm_splay_tree_remove (mm_splay_tree_t, mm_splay_tree_key_t);

@@ -25,6 +25,10 @@
 #include <nautilus/shell.h>
 #include <nautilus/vc.h>
 
+#ifdef NAUT_CONFIG_ASPACES
+#include <nautilus/aspace.h>
+#endif
+
 #ifndef NAUT_CONFIG_DEBUG_SHELL
 #undef DEBUG_PRINT
 #define DEBUG_PRINT(fmt, args...) 
@@ -36,8 +40,6 @@
 #define ERROR(fmt, args...) ERROR_PRINT("SHELL: " fmt, ##args)
 
 #define CHAR_TO_IDX(k) (tolower((k)) - 'a')
-
-// delete after finish debugging
 #define NAUT_CONFIG_ASPACES 1
 
 struct shell_op {
@@ -708,6 +710,7 @@ shell (void * in, void ** out)
         ERROR("Cannot name shell's thread\n");
         return;
     }
+
 // ENABLE THIS CODE TO START TO TEST YOUR PAGING IMPLEMENTATION
 #ifdef NAUT_CONFIG_ASPACES
     nk_aspace_characteristics_t c;
@@ -778,6 +781,44 @@ shell (void * in, void ** out)
 
     //nk_aspace_dump_aspaces(1);
 
+    nk_aspace_region_t reg_it, reg_overlap;
+    reg_it.pa_start = 0;
+    reg_it.len_bytes = 0x80000UL;  // 512K
+    reg_it.protect.flags = NK_ASPACE_READ | NK_ASPACE_WRITE | NK_ASPACE_EXEC | NK_ASPACE_PIN | NK_ASPACE_KERN;
+    uint64_t offset = 0;
+    // uint64_t base_offset = ;
+    for (offset = r2.len_bytes; offset <r2.len_bytes +  0x1000000UL; offset += 2 * reg_it.len_bytes) {
+        reg_it.va_start = r2.va_start + offset;
+        if (nk_aspace_add_region(mas,&reg_it)) {
+            nk_vc_printf("failed to add overlapped region to address space\n");
+            goto vc_setup;
+        }
+    }
+
+
+    // // should fail region overlapped
+    // reg_overlap.va_start = r2.va_start + r2.len_bytes + 5 * reg_it.len_bytes/2;
+    // reg_overlap.pa_start = 0;
+    // reg_overlap.len_bytes = 0x40000UL;  // 512K
+    // reg_overlap.protect.flags = NK_ASPACE_READ | NK_ASPACE_WRITE | NK_ASPACE_EXEC | NK_ASPACE_PIN | NK_ASPACE_KERN;
+
+    // if (nk_aspace_add_region(mas,&reg_overlap)) {
+    //     nk_vc_printf("failed to add overlapped region to address space\n");
+    //     goto vc_setup;
+    // }
+
+    // should fail region overlapped
+    // reg_overlap.va_start = r2.va_start + r2.len_bytes + reg_it.len_bytes;
+    // reg_overlap.len_bytes = 0xc0000UL;  // 512K
+
+    // if (nk_aspace_add_region(mas,&reg_overlap)) {
+    //     nk_vc_printf("failed to add overlapped region to address space\n");
+    //     goto vc_setup;
+    // }
+
+    //ends here
+
+
     if (nk_aspace_move_thread(mas)) {
 	nk_vc_printf("failed to move shell thread to new address space\n");
 	goto vc_setup;
@@ -804,6 +845,13 @@ shell (void * in, void ** out)
 
     nk_vc_printf("Survived memory comparison of one eager and one lazy copy\n");
     
+    // try to access not defined region 
+    // if (memcmp(r.va_start, r2.va_start + 2 * r2.len_bytes , 0x100000)) {
+	//     nk_vc_printf("should fail\n");
+    //     goto vc_setup;
+    // }
+
+
     // // test case for move region
     nk_aspace_region_t r3, r4, r5;
     r3.va_start = (void*) 0x200000000UL;
@@ -828,7 +876,7 @@ shell (void * in, void ** out)
     r4.va_start = (void*) 0x300000000UL;
     r4.pa_start = (void*) 0x200000000UL;
     r4.len_bytes = 0x100000000UL;
-    r4.protect.flags = NK_ASPACE_READ | NK_ASPACE_WRITE | NK_ASPACE_EXEC | NK_ASPACE_PIN | NK_ASPACE_KERN ;
+    r4.protect.flags = NK_ASPACE_READ | NK_ASPACE_WRITE | NK_ASPACE_EXEC | NK_ASPACE_PIN | NK_ASPACE_KERN | NK_ASPACE_EAGER;
 
 
     if (nk_aspace_add_region(mas,&r4)) {
@@ -862,12 +910,10 @@ shell (void * in, void ** out)
     nk_vc_printf("Survived memory comparison of r and r5\n");
     
 
-    // expect to fail
-    // if (memcmp(r3.va_start, r4.va_start, 0x10000)) {
-	//     nk_vc_printf("Weird, r3 and r4  differ...\n");
-    //     goto vc_setup;
-    // }
-    // nk_vc_printf("Survived memory comparison of r3 and r4\n");
+    // expect to differ
+    if (memcmp(r3.va_start, r4.va_start, 0x10000)) {
+	    nk_vc_printf("Good, expected r3 and r4  differ...\n");
+    }
 
     
     // test case for remove region
@@ -888,6 +934,7 @@ shell (void * in, void ** out)
     }
 
     nk_vc_printf("Survived region removal of r5\n");
+    
     // should fail
     // if (memcmp((void*) r5.va_start , (void*) r5.va_start, 0x10000)) {
 	//     nk_vc_printf("Reference r5 at %16lx FAIL\n", r5.va_start);
@@ -936,6 +983,7 @@ shell (void * in, void ** out)
 #endif
     
  vc_setup:
+    
     if (nk_bind_vc(get_cur_thread(), vc)) { 
         ERROR("Cannot bind virtual console for shell\n");
         return;
@@ -1023,8 +1071,8 @@ handle_shell (char * buf, void * priv)
     if (sscanf(buf, "shell %s", name) == 1) { 
         nk_launch_shell(name, -1, 0, 0); // simple interactive shell
         return 0;
-    } 
-    
+    }
+
     nk_vc_printf("invalid shell command\n");
 
     return 0;

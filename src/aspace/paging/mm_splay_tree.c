@@ -29,11 +29,13 @@
    The major feature of splay trees is that all basic tree operations
    are amortized O(log n) time for a tree with n nodes.  */
 
-
-
 #include <nautilus/nautilus.h>
 #include "mm_splay_tree.h"
 
+#define ERROR_SP(fmt, args...) ERROR_PRINT("aspace-paging-splay-tree: " fmt, ##args)
+#define DEBUG_SP(fmt, args...) DEBUG_PRINT("aspace-paging-splay-tree: " fmt, ##args)
+#define INFO_SP(fmt, args...)   INFO_PRINT("aspace-paging-splay-tree: " fmt, ##args)
+#define MALLOC_SP(n) ({void *__p = malloc(n); if (!__p) { ERROR_SP("Malloc failed\n"); panic("Malloc failed\n"); } __p;})
 
 /* Rotate the edge joining the left child N with its parent P.  PP is the
    grandparents' pointer to P.  */
@@ -55,32 +57,32 @@ int mm_overlap_helper(nk_aspace_region_t * regionA, nk_aspace_region_t * regionB
 }
 
 static inline void
-mm_rotate_left (mm_splay_tree_node_t *pp, mm_splay_tree_node_t *p, mm_splay_tree_node_t *n)
+rotate_left (mm_splay_tree_node_t **pp, mm_splay_tree_node_t *p, mm_splay_tree_node_t *n)
 {
-  mm_splay_tree_node_t tmp;
+  mm_splay_tree_node_t * tmp;
   tmp = n->right;
   n->right = p;
   p->left = tmp;
-  pp = n;
+  *pp = n;
 }
 
 /* Rotate the edge joining the right child N with its parent P.  PP is the
    grandparents' pointer to P.  */
 
 static inline void
-mm_rotate_right (mm_splay_tree_node_t *pp, mm_splay_tree_node_t *p, mm_splay_tree_node_t *n)
+rotate_right (mm_splay_tree_node_t **pp, mm_splay_tree_node_t *p, mm_splay_tree_node_t *n)
 {
-  mm_splay_tree_node_t tmp;
+  mm_splay_tree_node_t * tmp;
   tmp = n->left;
   n->left = p;
   p->right = tmp;
-  pp = n;
+  *pp = n;
 }
 
 /* Bottom up splay of KEY.  */
 
 static void
-mm_splay_tree_splay (mm_splay_tree_t *sp, mm_splay_tree_key_t *key)
+splay_tree_splay (mm_splay_tree_t *sp, uint64_t key)
 {
   if (sp->root == NULL)
     return;
@@ -106,7 +108,7 @@ mm_splay_tree_splay (mm_splay_tree_t *sp, mm_splay_tree_key_t *key)
 
     /* Next one left or right?  If found or no child, we're done
        after one rotation.  */
-    cmp2 = splay_compare (key, &c->key);
+    cmp2 = mm_splay_compare (key, c->key);
     if (cmp2 == 0
 	|| (cmp2 < 0 && !c->left)
 	|| (cmp2 > 0 && !c->right))
@@ -144,15 +146,37 @@ mm_splay_tree_splay (mm_splay_tree_t *sp, mm_splay_tree_key_t *key)
 
 /* Insert a new NODE into SP.  The NODE shouldn't exist in the tree.  */
 
-attribute_hidden void
-mm_splay_tree_insert (mm_splay_tree_t * sp, mm_splay_tree_node_t * node)
+int
+mm_splay_tree_insert (mm_struct_t * self, nk_aspace_region_t * region)
 {
+
+  mm_splay_tree_t * sp = (mm_splay_tree_t *) self;
+  mm_splay_tree_node_t * node = (mm_splay_tree_node_t *) malloc(sizeof(mm_splay_tree_node_t));
+    
+    if (! node) {
+        ERROR_PRINT("cannot allocate a node for splay tree data structure to track region mapping\n");
+        return 0;
+    }
+
+  node->region = *region;
+  node->key = (uint64_t) region->va_start;
+
   int comparison = 0;
 
-  mm_splay_tree_splay (sp, node->key);
+  DEBUG_SP("Before doing splay\n");
+  mm_splay_tree_show(self);
+  
+
+  splay_tree_splay (sp, node->key);
+
+  DEBUG_SP("After doing splay\n");
+  mm_splay_tree_show(self);
+
+  DEBUG_SP("The new inserting key is %lx, the root key is %lx\n",node->key,sp->root->key);
+  
 
   if (sp->root)
-    comparison = mm_splay_compare (&sp->root->key, &node->key);
+    comparison = mm_splay_compare (sp->root->key, node->key);
 
   if (sp->root && comparison == 0) {
     DEBUG_PRINT("Duplicate node\n");
@@ -174,24 +198,34 @@ mm_splay_tree_insert (mm_splay_tree_t * sp, mm_splay_tree_node_t * node)
 	  node->left = node->right->left;
 	  node->right->left = NULL;
 	}
-
       sp->root = node;
     }
+
+  sp->super.size++;
+
+  return 1;
 }
 
 /* Remove node with KEY from SP.  It is not an error if it did not exist.  */
 
-attribute_hidden void
-mm_splay_tree_remove (mm_splay_tree_t *sp, mm_splay_tree_key_t * key)
+int
+mm_splay_tree_remove (mm_struct_t * self, nk_aspace_region_t * region, uint8_t check_flags)
 {
+
+  mm_splay_tree_t * sp = (mm_splay_tree_t *) self;
+  uint64_t key = (uint64_t) region->va_start;
+
   splay_tree_splay (sp, key);
 
-  if (sp->root && splay_compare (sp->root->key, key) == 0)
+  if (sp->root && mm_splay_compare (sp->root->key, key) == 0)
     {
       mm_splay_tree_node_t * left, * right;
+      mm_splay_tree_node_t * delete_node = sp->root;
 
       left = sp->root->left;
       right = sp->root->right;
+
+
 
       /* One of the children is now the root.  Doesn't matter much
 	 which, so long as we preserve the properties of the tree.  */
@@ -210,63 +244,186 @@ mm_splay_tree_remove (mm_splay_tree_t *sp, mm_splay_tree_key_t * key)
 	}
       else
 	sp->root = right;
+
+  free(delete_node);
+  DEBUG_PRINT("The region has been successfully removed");
+
+  sp->super.size--;
+
+  return 1;
     }
+  else{
+    DEBUG_PRINT("No such a region found, failed to remove the region");
+    return -1;
+  }
 }
 
 /* Lookup KEY in SP, returning NODE if present, and NULL
    otherwise.  */
 
-attribute_hidden nk_aspace_region_t*
-mm_splay_tree_lookup (mm_splay_tree_t * sp, mm_splay_tree_key_t * key)
-{
-  mm_splay_tree_splay (sp, key);
+// attribute_hidden nk_aspace_region_t*
+// mm_splay_tree_contains (mm_splay_tree_t * sp, uint64_t key)
+// {
+//   mm_splay_tree_splay (sp, key);
 
-  if (sp->root && mm_splay_compare (sp->root->key, key) == 0)
-    return  &(sp->root->region);
-  else
+//   if (sp->root && mm_mm_splay_compare (sp->root->key, key) == 0)
+//     return  &(sp->root->region);
+//   else
+//     return NULL;
+// }
+
+
+void mm_show_helper(mm_splay_tree_node_t * node){
+  if(node){
+    mm_show_helper(node->left);
+    DEBUG_SP("VA = %016lx to PA = %016lx, len = %16lx\n", 
+            node->region.va_start,
+            node->region.pa_start,
+            node->region.len_bytes
+        );
+    mm_show_helper(node->right);
+  }
+}
+
+void mm_splay_tree_show(mm_struct_t * self){
+  mm_splay_tree_t * sp = (mm_splay_tree_t * ) self; 
+  mm_show_helper(sp->root);
+}
+
+nk_aspace_region_t* mm_splay_tree_contains(mm_struct_t * self, nk_aspace_region_t * region, uint8_t check_flags){
+
+    mm_splay_tree_t * sp = (mm_splay_tree_t *) self;
+    uint64_t key =  (uint64_t) region->va_start;
+
+    splay_tree_splay (sp, key);
+    if (sp->root && region_equal(&sp->root->region, region, check_flags) && mm_splay_compare (sp->root->key, key) == 0){
+      return &sp->root->region;
+    }
     return NULL;
 }
+
+nk_aspace_region_t * mm_splay_tree_check_overlap(mm_struct_t * self, nk_aspace_region_t * region){
+    mm_splay_tree_t * sp = (mm_splay_tree_t * ) self;
+    mm_splay_tree_node_t * curr_node = sp->root;
+
+    while (curr_node != NULL) {
+        nk_aspace_region_t * curr_region_ptr = &curr_node->region;
+        uint64_t key = (uint64_t) region->va_start;
+
+        // if the region overlaps (either key matches, or region interval matches)
+        if(key==curr_node->key || mm_overlap_helper(region,&curr_node->region)){ 
+          return curr_region_ptr;
+        }
+
+        //decide which subtree to step in
+        else{
+          if(mm_splay_compare(curr_node->key,key) < 0){
+            curr_node = curr_node->right;
+          }
+          else{
+            curr_node = curr_node->left;
+          }
+        }
+    }
+
+    return NULL;
+}
+
+nk_aspace_region_t * mm_splay_tree_update_region(
+    mm_struct_t * self, 
+    nk_aspace_region_t * cur_region, 
+    nk_aspace_region_t * new_region, 
+    uint8_t eq_flag
+){
+  nk_aspace_region_t * cur_ptr = mm_splay_tree_contains(self,cur_region,eq_flag);
+  if(cur_ptr && region_equal(cur_ptr, cur_region, eq_flag)){
+      region_update(cur_ptr, new_region, eq_flag);
+      return cur_ptr;
+  }
+  else{
+    return NULL;
+  }
+}
+
+nk_aspace_region_t * mm_splay_tree_find_reg_at_addr (mm_struct_t * self, addr_t address) {
+    mm_splay_tree_t * sp = (mm_splay_tree_t * ) self;
+    mm_splay_tree_node_t * curr_node = sp->root;
+
+    while (curr_node != NULL) {
+        nk_aspace_region_t curr_reg = curr_node->region;
+        if ( 
+            (addr_t) curr_reg.va_start <= address && 
+            address < (addr_t) curr_reg.va_start + (addr_t) curr_reg.len_bytes
+        ) {
+            return &curr_node->region;
+        }
+
+        //check right branch
+        if((addr_t) curr_reg.va_start < address){
+          curr_node = curr_node->right;
+        }
+
+        //check right branch
+        else{
+          curr_node = curr_node->left;
+        }
+    }
+    
+    return NULL;
+}
+
+
 
 /* Helper function for splay_tree_foreach.
    Run FUNC on every node in KEY.  */
 
-static void
-splay_tree_foreach_internal (mm_splay_tree_node_t node, mm_splay_tree_callback_t func,
-			     void *data)
-{
-  if (!node)
-    return;
-  func (&node->key, data);
-  splay_tree_foreach_internal (node->left, func, data);
-  /* Yeah, whatever.  GCC can fix my tail recursion.  */
-  splay_tree_foreach_internal (node->right, func, data);
-}
+// static void
+// splay_tree_foreach_internal (mm_splay_tree_node_t node, mm_splay_tree_callback_t func,
+// 			     void *data)
+// {
+//   if (!node)
+//     return;
+//   func (&node->key, data);
+//   splay_tree_foreach_internal (node->left, func, data);
+//   /* Yeah, whatever.  GCC can fix my tail recursion.  */
+//   splay_tree_foreach_internal (node->right, func, data);
+// }
 
-/* Run FUNC on each of the nodes in SP.  */
+// /* Run FUNC on each of the nodes in SP.  */
 
-attribute_hidden void
-splay_tree_foreach (mm_splay_tree_t sp, mm_splay_tree_callback_t func, void *data)
-{
-  splay_tree_foreach_internal (sp->root, func, data);
-}
+// attribute_hidden void
+// splay_tree_foreach (mm_splay_tree_t * sp, mm_splay_tree_callback_t func, void *data)
+// {
+//   splay_tree_foreach_internal (sp->root, func, data);
+// }
 
 
 int mm_splay_tree_init(mm_splay_tree_t * spt){
     mm_struct_init(& (spt -> super));
     
-    vtbl * vptr = (vtbl *) malloc (sizeof(vtbl));
-    vptr->insert = &mm_splay_tree_insert;
-    vptr->show = &mm_llist_show;
-    vptr->check_overlap = &mm_llist_check_overlap;
-    vptr->remove = &mm_llist_remove;
-    vptr->contains = &mm_llist_contains;
-    vptr->find_reg_at_addr = &mm_llist_find_reg_at_addr;
-    vptr->update_region = &mm_llist_update_region;
+    
+    spt->super.vptr->insert = &mm_splay_tree_insert;
+    spt->super.vptr->show = &mm_splay_tree_show;
+    spt->super.vptr->check_overlap = &mm_splay_tree_check_overlap;
+    spt->super.vptr->remove = &mm_splay_tree_remove;
+    spt->super.vptr->contains = &mm_splay_tree_contains;
+    spt->super.vptr->find_reg_at_addr = &mm_splay_tree_find_reg_at_addr;
+    spt->super.vptr->update_region = &mm_splay_tree_update_region;
 
-    spt->super.vptr = vptr;
-    spt->region_head = NULL;
+    spt->root = NULL;
 
     return 0;
 }
 
+mm_struct_t * mm_splay_tree_create() {
+    mm_splay_tree_t *mytree = (mm_splay_tree_t *) malloc(sizeof(mm_splay_tree_t));
 
+    if (! mytree) {
+        ERROR_PRINT("cannot allocate a linked list data structure to track region mapping\n");
+        return 0;
+    }
+
+    mm_splay_tree_init(mytree);
+
+    return &mytree->super;
+}

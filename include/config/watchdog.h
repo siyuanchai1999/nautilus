@@ -1,0 +1,1 @@
+#define NAUT_CONFIG_WATCHDOG 1
