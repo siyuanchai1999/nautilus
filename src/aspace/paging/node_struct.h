@@ -14,21 +14,47 @@ typedef struct mem_map_struct
 
 /*
     list of vitual functions to be implemented. 
-*/
+*/ 
 typedef struct mm_struct_vtbl
 {
-    int (* insert) (mm_struct_t * self, nk_aspace_region_t * region);
+    int (* insert) (
+        mm_struct_t * self, 
+        nk_aspace_region_t * region
+    );
+
     void (* show) (mm_struct_t * self);
-    nk_aspace_region_t * (* check_overlap) (mm_struct_t * self, nk_aspace_region_t * region);
-    int (* remove) (mm_struct_t * self, nk_aspace_region_t * region, uint8_t check_flags);
-    nk_aspace_region_t* (* contains) (mm_struct_t * self, nk_aspace_region_t * region, uint8_t check_flags);
-    nk_aspace_region_t * (* find_reg_at_addr) (mm_struct_t * self, addr_t address);
+    
+    nk_aspace_region_t * (* check_overlap) (
+        mm_struct_t * self, 
+        nk_aspace_region_t * region
+    );
+    
+    int (* remove) (
+        mm_struct_t * self, 
+        nk_aspace_region_t * region, 
+        uint8_t check_flags
+    );
+    
+    nk_aspace_region_t* (* contains) (
+        mm_struct_t * self, 
+        nk_aspace_region_t * region, 
+        uint8_t check_flags
+    );
+    
+    nk_aspace_region_t * (* find_reg_at_addr) (
+        mm_struct_t * self,
+        addr_t address
+    );
     
     nk_aspace_region_t * (* update_region) (
         mm_struct_t * self, 
         nk_aspace_region_t * cur_region, 
         nk_aspace_region_t * new_region, 
         uint8_t eq_flag
+    );
+
+    int (* destroy) (
+        mm_struct_t * self
     );
 
 } vtbl;
@@ -69,6 +95,12 @@ if no region contains such address, return NULL
 
 nk_aspace_region_t * mm_find_reg_at_addr (mm_struct_t * self, addr_t address);
 
+/*
+    destroy and free the data structure
+*/
+
+int mm_destory (mm_struct_t * self);
+
 
 /*
 update region in the data structure that matches cur_region in terms of criterion specified by eq_flag. (See region_equal for details)
@@ -106,6 +138,7 @@ nk_aspace_region_t * virtual_update_region (
     uint8_t eq_flag
 );
 
+int virtual_destory (mm_struct_t * self);
 
 
 mm_struct_t * mm_struct_create();

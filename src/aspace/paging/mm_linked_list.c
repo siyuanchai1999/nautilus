@@ -1,14 +1,24 @@
 #include "mm_linked_list.h"
 #include <nautilus/nautilus.h>
 
+// #define ERROR_LLIST(fmt, args...) ERROR_PRINT("aspace-paging-llist: " fmt, ##args)
+// #define DEBUG_LLIST(fmt, args...) DEBUG_PRINT("aspace-paging-llist: " fmt, ##args)
+// #define INFO_LLIST(fmt, args...)   INFO_PRINT("aspace-paging-llist: " fmt, ##args)
+// #define MALLOC_LLIST(n) ({void *__p = malloc(n); if (!__p) { ERROR_RB("Malloc failed\n"); panic("Malloc failed\n"); } __p;})
+
+#define ERROR_LLIST(fmt, args...) ERROR_PRINT("aspace-paging-llist: " fmt, ##args)
+#define DEBUG_LLIST(fmt, args...) DEBUG_PRINT("aspace-paging-llist: " fmt, ##args)
+#define INFO_LLIST(fmt, args...)   INFO_PRINT("aspace-paging-llist: " fmt, ##args)
+
 int mm_llist_insert(mm_struct_t * self, nk_aspace_region_t * region) {
     mm_llist_t * llist = (mm_llist_t * ) self;
 
     mm_llist_node_t * newhead = (mm_llist_node_t *) malloc(sizeof(mm_llist_node_t));
-    
-    if (! newhead) {
-        ERROR_PRINT("cannot allocate a node for linked list data structure to track region mapping\n");
-        return 0;
+
+    if (!newhead) {
+        ERROR_LLIST("cannot allocate a new linked list node!\n");
+        panic("cannot allocate a new linked list node!\n");
+        return -1;
     }
     
     newhead->region = *region;
@@ -21,14 +31,14 @@ int mm_llist_insert(mm_struct_t * self, nk_aspace_region_t * region) {
 }
 
 void mm_llist_show(mm_struct_t * self) {
-    DEBUG_PRINT("Printing regions in linked list\n");
+    DEBUG_LLIST("Printing regions in linked list\n");
 
     mm_llist_t * llist = (mm_llist_t * ) self;
 
     mm_llist_node_t * curr_node = llist->region_head;
     while (curr_node != NULL)
     {
-        DEBUG_PRINT("VA = %016lx to PA = %016lx, len = %16lx\n", 
+        DEBUG_LLIST("VA = %016lx to PA = %016lx, len = %16lx\n", 
             curr_node->region.va_start,
             curr_node->region.pa_start,
             curr_node->region.len_bytes
@@ -133,6 +143,26 @@ nk_aspace_region_t * mm_llist_update_region (
     return NULL;
 }
 
+int mm_llist_node_destroy(mm_llist_node_t * node) {
+    if (node != NULL) {
+        mm_llist_node_destroy(node->next_llist_node);
+        free(node);
+    }
+    return 0;
+}
+
+int mm_llist_destroy(mm_struct_t * self) {
+    mm_llist_t * llist = (mm_llist_t * ) self;
+    mm_llist_node_t * head = llist->region_head;
+    
+    mm_llist_node_destroy(head);
+
+    free(llist);
+    
+    DEBUG_LLIST("Done: destroy linked list!\n");
+    return 0;
+}
+
 int mm_llist_init(mm_llist_t * llist) {
     mm_struct_init(& (llist->super));
 
@@ -143,6 +173,7 @@ int mm_llist_init(mm_llist_t * llist) {
     llist->super.vptr->contains = &mm_llist_contains;
     llist->super.vptr->find_reg_at_addr = &mm_llist_find_reg_at_addr;
     llist->super.vptr->update_region = &mm_llist_update_region;
+    llist->super.vptr->destroy = &mm_llist_destroy;
 
     llist->region_head = NULL;
 
@@ -153,7 +184,8 @@ mm_struct_t * mm_llist_create() {
     mm_llist_t *mylist = (mm_llist_t *) malloc(sizeof(mm_llist_t));
 
     if (! mylist) {
-        ERROR_PRINT("cannot allocate a linked list data structure to track region mapping\n");
+        ERROR_LLIST("cannot allocate a linked list data structure to track region mapping\n");
+        panic("cannot allocate a linked list data structure to track region mapping\n");
         return 0;
     }
 

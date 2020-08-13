@@ -933,6 +933,7 @@ shell (void * in, void ** out)
     memcpy((void*)(reg.va_start), (void*)0x0, 0x4000);
     nk_vc_printf("survived writing to region with new added writing access\n");
     
+    nk_aspace_destroy(mas);
 #endif
     
  vc_setup:

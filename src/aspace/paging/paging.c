@@ -124,8 +124,9 @@ static  int destroy(void *state)
     //
     // WRITEME!!    actually do the work
     // 
-    free(p->paging_mm_struct);
+    mm_destory(p->paging_mm_struct);
     free(p);
+    DEBUG("Done: destroy the aspace!\n");
     ASPACE_UNLOCK(p);
 
     return 0;
@@ -872,6 +873,3 @@ static nk_aspace_impl_t paging = {
 // this does linker magic to populate a table of address space
 // implementations by including this implementation
 nk_aspace_register_impl(paging);
-
-
->>>>>>> 472c503b0eb6372f4ac6d3d666e5d8e585ce1420

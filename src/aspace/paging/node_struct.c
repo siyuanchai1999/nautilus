@@ -4,36 +4,36 @@
 
 int virtual_insert(mm_struct_t * self, nk_aspace_region_t * region) {
     // should never be called as a virtual function 
-    assert(0);
+    panic("should not call virtual_insert\n");;
     return 0;
 }
 
 void virtual_show(mm_struct_t * self) {
     // should never be called as a virtual function 
-    assert(0);
+    panic("should not call virtual_show\n");;
 }
 
 nk_aspace_region_t * virtual_check_overlap(mm_struct_t * self, nk_aspace_region_t * region) {
     // should never be called as a virtual function 
-    assert(0);
+    panic("should not call virtual_check_overlap\n");;
     return 0;
 }
 
 int virtual_remove(mm_struct_t * self, nk_aspace_region_t * region, uint8_t check_flags) {
     // should never be called as a virtual function 
-    assert(0);
+    panic("should not call virtual_remove\n");;
     return 0;
 }
 
 nk_aspace_region_t* virtual_contains(mm_struct_t * self, nk_aspace_region_t * region, uint8_t check_flags) {
     // should never be called as a virtual function 
-    assert(0);
+    panic("should not call virtual_contains\n");;
     return 0;
 }
 
 nk_aspace_region_t * virtual_find_reg_at_addr (mm_struct_t * self, addr_t address) {
     // should never be called as a virtual function 
-    assert(0);
+    panic("should not call virtual_find_reg_at_addr\n");;
     return 0;
 }
 
@@ -44,7 +44,12 @@ nk_aspace_region_t * virtual_update_region (
     uint8_t eq_flag
 ) {
     // should never be called as a virtual function 
-    assert(0);
+    panic("should not call virtual_update_region\n");;
+    return 0;
+}
+
+int virtual_destory (mm_struct_t * self) {
+    panic("should not call virtual destroy\n");
     return 0;
 }
 
@@ -64,6 +69,7 @@ int mm_struct_init(mm_struct_t * self) {
     vptr->contains = &virtual_contains;
     vptr->find_reg_at_addr = &virtual_find_reg_at_addr;
     vptr->update_region = &virtual_update_region;
+    vptr->destroy = &virtual_destory;
 
     self->vptr = vptr;
     self->size = 0;
@@ -117,6 +123,10 @@ nk_aspace_region_t * mm_update_region (
     uint8_t eq_flag
 ) {
     return (* self->vptr->update_region) (self, cur_region, new_region, eq_flag);
+}
+
+int mm_destory (mm_struct_t * self) {
+    return (* self->vptr->destroy) (self);
 }
 
 int region_equal(nk_aspace_region_t * regionA, nk_aspace_region_t * regionB, uint8_t check_flags) {
