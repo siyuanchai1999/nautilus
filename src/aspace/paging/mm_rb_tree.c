@@ -887,6 +887,28 @@ int rb_comp_region(mm_rb_node_t * n1, mm_rb_node_t * n2) {
     }
 }
 
+int mm_rb_node_destroy(mm_rb_tree_t * tree, mm_rb_node_t * node) {
+    if (node != tree->NIL) {
+        mm_rb_node_destroy(tree, node->left);
+        mm_rb_node_destroy(tree, node->right);
+
+        free(node);
+    }
+    return 0;
+}
+
+int mm_rb_tree_destroy(mm_struct_t * self) {
+    mm_rb_tree_t * tree = (mm_rb_tree_t *) self;
+
+    mm_rb_node_destroy(tree, tree->root);
+    free(tree->NIL);
+
+    free(tree);
+
+    DEBUG_RB("Done: rbtree destroyed!\n");
+    return 0;
+}
+
 mm_rb_node_t * create_rb_NIL() {
     mm_rb_node_t * nil = (mm_rb_node_t *) MALLOC_RB(sizeof(mm_rb_node_t));
 
@@ -910,7 +932,8 @@ mm_struct_t * mm_rb_tree_create() {
     rbtree->super.vptr->update_region = &rb_tree_update_region;
     rbtree->super.vptr->remove = &rb_tree_remove;
     rbtree->super.vptr->contains = &rb_tree_contains;
-    
+    rbtree->super.vptr->destroy = &mm_rb_tree_destroy;
+
     rbtree->NIL = create_rb_NIL();
     rbtree->root = rbtree->NIL;
     rbtree->compf = &rb_comp_region;
