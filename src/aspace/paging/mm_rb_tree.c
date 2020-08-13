@@ -4,8 +4,13 @@
 #define ERROR_RB(fmt, args...) ERROR_PRINT("aspace-paging-rbtree: " fmt, ##args)
 #define DEBUG_RB(fmt, args...) DEBUG_PRINT("aspace-paging-rbtree: " fmt, ##args)
 #define INFO_RB(fmt, args...)   INFO_PRINT("aspace-paging-rbtree: " fmt, ##args)
-
 #define MALLOC_RB(n) ({void *__p = malloc(n); if (!__p) { ERROR_RB("Malloc failed\n"); panic("Malloc failed\n"); } __p;})
+
+#define NUM2COLOR(n) (((n) == BLACK) ? 'B' : 'R')
+#define NODE_STR_LEN 128
+#define NODE_STR_DETAIL_LEN (NODE_STR_LEN * 4)
+
+
 
 /*
          |                    |   
@@ -343,7 +348,6 @@ void rb_tree_delete_fixup(mm_rb_tree_t * tree, mm_rb_node_t * x){
             }
         }
 
-        // rb_tree_level_order(tree);
     }
     x->color = BLACK;
 }
@@ -401,10 +405,44 @@ void rb_tree_delete_node(mm_rb_tree_t * tree, mm_rb_node_t * z) {
     tree->super.size = tree->super.size - 1;
 }
 
+int node2str(mm_rb_tree_t * tree, mm_rb_node_t * node, char * str) {
+    if (node == tree->NIL){
+        sprintf(str, "NIL");
+    } else {
+        sprintf(str, "((VA = 0x%016lx to PA = 0x%016lx, len = %lx, prot=%lx) %c)", 
+            node->region.va_start,
+            node->region.pa_start,
+            node->region.len_bytes,
+            node->region.protect.flags,
+            NUM2COLOR(node->color)
+        );
+    }
+
+    int len = strlen(str);
+
+    if (len > NODE_STR_LEN) {
+        ERROR_RB("running out of allocated space when printing node!\n");
+        return -1;
+    }
+    return strlen(str);
+}
+
+long max_depth_helper(mm_rb_tree_t * tree, mm_rb_node_t * curr) {
+    if (curr == tree->NIL) return 0;
+    long left_depth = max_depth_helper(tree, curr->left);
+    long right_depth = max_depth_helper(tree, curr->right);
+
+    return 1 + (left_depth > right_depth ? left_depth : right_depth);
+}
+
+long max_depth(mm_rb_tree_t * tree) {
+    return max_depth_helper(tree, tree->root);
+}
+
 void rb_tree_inorder_helper(mm_rb_tree_t * tree, mm_rb_node_t * curr) {
     if (curr != tree->NIL) {
         rb_tree_inorder_helper(tree, curr->left);
-        DEBUG("(VA = 0x%016lx to PA = 0x%016lx, len = %lx, prot=%lx)\n", 
+        DEBUG_RB("(VA = 0x%016lx to PA = 0x%016lx, len = %lx, prot=%lx)\n", 
             curr->region.va_start,
             curr->region.pa_start,
             curr->region.len_bytes,
@@ -417,13 +455,183 @@ void rb_tree_inorder_helper(mm_rb_tree_t * tree, mm_rb_node_t * curr) {
 
 void rb_tree_inorder(mm_struct_t * self){
     mm_rb_tree_t * tree = (mm_rb_tree_t * ) self;
-    DEBUG("Displaying the tree at %p with inorder (left, root, right)"
-            "expect ascending order\n",
-            tree
-        );
-    rb_tree_inorder_helper(tree, tree->root);
-    DEBUG("\n");
+    DEBUG_RB("size = %d (will not print if depth >= MAX_SIZE_INORDER_PRINT = %d)\n",
+        tree->super.size, MAX_SIZE_INORDER_PRINT
+    );
+
+    if (tree->super.size < MAX_SIZE_INORDER_PRINT) {
+        rb_tree_inorder_helper(tree, tree->root);
+    }
+
+    if (RB_TREE_CHECK_AFTER_TRAVERSAL){
+        rb_tree_check(self);
+        DEBUG_RB("rb tree at %p passed rb property check!\n", tree);
+    }
+
 }
+
+void rb_tree_level_order(mm_struct_t * self) {
+
+    mm_rb_tree_t * tree = (mm_rb_tree_t *) self;
+    DEBUG_RB("Displaying the tree at %p with levelorder BFS\n", tree );
+
+    long depth = max_depth(tree);
+    DEBUG_RB("depth = %d (will not print if depth >= MAX_DEPTH_LEVEL_ORDER_PRINT = %d)\n",
+        depth, MAX_DEPTH_LEVEL_ORDER_PRINT
+    );
+
+    if (depth < MAX_DEPTH_LEVEL_ORDER_PRINT){
+        char buf[NODE_STR_LEN * (1 << depth)];
+        char * free_space_ptr = buf;
+
+        size_t queue_size = (1 << depth) - 1;
+    
+        int head = 0, tail = 0, next_power = 1, curlevel = 0;
+        
+        mm_rb_node_t ** q = (mm_rb_node_t ** ) malloc(queue_size * sizeof(mm_rb_node_t *));
+        mm_rb_node_t * curr = tree->root;
+        
+        if (curr == tree->NIL) {
+            DEBUG_RB("empty tree!\n");
+            return;
+        }
+
+        q[tail++] = curr;
+        
+        while (head != queue_size) {
+            curr = q[head];
+            
+            int len = node2str(tree, curr, free_space_ptr);
+            if (len < 0 ) {
+                ERROR_RB("level order fail because of not enough allocated space!\n");
+                return;
+            }
+            free_space_ptr += len;
+            *free_space_ptr++ = ' ';
+
+
+            if (tail < queue_size) {
+                if (curr != tree->NIL){
+                    q[tail++] = curr->left;
+                    q[tail++] = curr->right;
+                } else {
+                    q[tail++] = tree->NIL;
+                    q[tail++] = tree->NIL;
+                }
+            }
+            
+            head++;
+            if (head == next_power) {
+                *free_space_ptr++ = '\0';
+                DEBUG_RB("%s\n", buf);
+                free_space_ptr = buf;
+                curlevel++;
+                next_power += (1 << curlevel);
+
+            }
+        }
+    }
+
+    if (RB_TREE_CHECK_AFTER_TRAVERSAL){
+        rb_tree_check(self);
+        DEBUG_RB("rb tree at %p passed rb property check!\n", tree);
+    }
+
+}
+
+int rb_tree_check_helper(mm_rb_tree_t * tree, mm_rb_node_t * node) {
+    // printf("checking");
+    // disp_node(tree, node);
+    // printf("\n");
+    char buf[NODE_STR_LEN];
+    node2str(tree, node, buf);
+
+    int color_test = node->color == BLACK || node->color == RED;
+
+    if (!color_test) {
+        panic("%s color test fail with color=%d\n", buf, node->color);
+        // assert(color_test);
+    }
+    
+
+    if (node->color == RED) {
+        int red_color_test = (node->left->color == BLACK && node->left->color == BLACK);
+        
+        if (!red_color_test) {
+            panic("%s red color test fail with leftchild->color=%c rightchild->color=%c\n",
+                    buf,
+                    NUM2COLOR(node->left->color),
+                    NUM2COLOR(node->right->color)
+            );
+        }
+        
+    }
+
+
+    if (node == tree->NIL) return 0;
+    int left_bh = rb_tree_check_helper(tree, node->left);
+    int right_bh = rb_tree_check_helper(tree, node->right);
+
+
+    int bh_test = (left_bh == right_bh);
+
+    if (!bh_test) {
+        panic("%s BH test fail with left_bh=%d right_bh=%d\n", 
+                buf, left_bh, right_bh
+        );
+    }
+
+    return left_bh + (node->color == BLACK);
+}
+
+void BST_order_check_helper(mm_rb_tree_t * tree, mm_rb_node_t * curr, mm_rb_node_t * prev) {
+    if (curr != tree->NIL) {
+        BST_order_check_helper(tree, curr->left, prev);
+
+        if (prev != tree->NIL) {
+            int comp = (*tree->compf)(prev, curr);
+            if (comp > 0) {
+                char buf_prev[NODE_STR_LEN];
+                char buf_curr[NODE_STR_LEN];
+                node2str(tree, prev, buf_prev);
+                node2str(tree, curr, buf_curr);
+                panic("%s and %s have order arranged wrong!\n", buf_prev, buf_curr);
+            }
+        }
+        prev = curr;
+        BST_order_check_helper(tree, curr->right, prev);
+    }
+}   
+/* 
+    test BST property
+*/
+void BST_order_check(mm_rb_tree_t * tree) {
+    // printf("Checking the tree at %p with inorder (left, root, right)"
+    //         "expect ascending order\n",
+    //         tree
+    //     );
+    BST_order_check_helper(tree, tree->root, tree->NIL);
+}
+
+int rb_tree_check(mm_struct_t * self) {
+    mm_rb_tree_t * tree = (mm_rb_tree_t *) self;
+
+    BST_order_check(tree);
+
+    int root_black_test = (tree->root->color == BLACK);
+    if (!root_black_test) {
+        panic("ERROR: root color=%d\n", tree->root->color);
+    }
+    
+    int NIL_black_test = (tree->NIL->color == BLACK);
+    if (!NIL_black_test) {
+        panic("ERROR: NIL color=%d\n", tree->NIL->color);
+    }
+    rb_tree_check_helper(tree, tree->root);
+
+    return 0;
+}
+
 
 /*
     dir = 1 select min
@@ -500,6 +708,7 @@ mm_rb_node_t * rb_tree_GLB(mm_rb_tree_t * tree, mm_rb_node_t * node) {
     return lower_bound;
 }
 
+/*
 nk_aspace_region_t * mm_rb_tree_check_overlap(mm_struct_t * self, nk_aspace_region_t * region) {
     mm_rb_tree_t * tree = (mm_rb_tree_t *) self;
 
@@ -530,6 +739,29 @@ nk_aspace_region_t * mm_rb_tree_check_overlap(mm_struct_t * self, nk_aspace_regi
         nk_aspace_region_t * curr_region_ptr = &LUB->region;
         if (overlap_helper(curr_region_ptr, region)) {
             return curr_region_ptr;
+        }
+    }
+
+    return NULL;
+}*/
+
+nk_aspace_region_t * mm_rb_tree_check_overlap(mm_struct_t * self, nk_aspace_region_t * region){
+    mm_rb_tree_t * tree = (mm_rb_tree_t *) self;
+    mm_rb_node_t * curr_node = tree->root;
+    mm_rb_node_t wrapper;
+    wrapper.region = *region;
+
+    while (curr_node != tree->NIL) {
+        int comp = (*tree->compf)(&wrapper, curr_node);
+
+        if(comp == 0 || overlap_helper(region,&curr_node->region)){ 
+            return &curr_node->region;
+        } else {
+            if(comp > 0){
+                curr_node = curr_node->right;
+            } else{
+                curr_node = curr_node->left;
+            }
         }
     }
 
@@ -672,6 +904,7 @@ mm_struct_t * mm_rb_tree_create() {
     
     rbtree->super.vptr->insert = &rb_tree_insert;
     rbtree->super.vptr->show = &rb_tree_inorder;
+    // rbtree->super.vptr->show = &rb_tree_level_order;
     rbtree->super.vptr->check_overlap = &mm_rb_tree_check_overlap;
     rbtree->super.vptr->find_reg_at_addr = &rb_tree_find_reg_at_addr;
     rbtree->super.vptr->update_region = &rb_tree_update_region;

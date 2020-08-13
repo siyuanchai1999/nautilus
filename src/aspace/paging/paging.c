@@ -197,7 +197,7 @@ int clear_cache (nk_aspace_paging_t *p, nk_aspace_region_t *region, uint64_t thr
                 invlpg((addr_t)region->va_start + (addr_t) offset);
                 offset = offset + p->chars.granularity;
             }
-            DEBUG("virtual address cache from %016lx to %016lx are invalidated\n", region->va_start, region->pa_start);
+            DEBUG("virtual address cache from 0x%016lx to 0x%016lx are invalidated\n", region->va_start, region->va_start + region->len_bytes);
         }
     } else {
         // TLB shootdown???
@@ -804,6 +804,13 @@ static int   get_characteristics(nk_aspace_characteristics_t *c)
 // someone wants to create a new paging address space with the given
 // name and characteristics
 //
+
+// void test_rb_llist(){
+//     mm_struct_t * rb_tree = mm_rb_tree_create();
+//     mm_struct_t * llist = mm_llist_create();
+
+// }
+
 static struct nk_aspace * create(char *name, nk_aspace_characteristics_t *c)
 {
     struct naut_info *info = nk_get_nautilus_info();
@@ -821,7 +828,7 @@ static struct nk_aspace * create(char *name, nk_aspace_characteristics_t *c)
     spinlock_init(&p->lock);
 
     // initialize your region set data structure here!
-    p->paging_mm_struct = mm_llist_create();
+    p->paging_mm_struct = mm_rb_tree_create();
 
     // create an initial top-level page table (PML4)
     if(paging_helper_create(&(p->cr3)) == -1){
