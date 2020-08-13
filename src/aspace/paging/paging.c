@@ -46,6 +46,8 @@
 
 #include "paging_helpers.h"
 #include "mm_linked_list.h"
+#include "mm_splay_tree.h"
+
 // #include "node_struct.h"
 // #include "test.h"
 //
@@ -821,7 +823,7 @@ static struct nk_aspace * create(char *name, nk_aspace_characteristics_t *c)
     spinlock_init(&p->lock);
 
     // initialize your region set data structure here!
-    p->paging_mm_struct = mm_llist_create();
+    p->paging_mm_struct = mm_splay_tree_create();
 
     // create an initial top-level page table (PML4)
     if(paging_helper_create(&(p->cr3)) == -1){
