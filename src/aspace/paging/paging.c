@@ -801,6 +801,21 @@ static int   get_characteristics(nk_aspace_characteristics_t *c)
     return 0;
 }
 
+void rb_linked_list_test() {
+    mm_struct_t * rbtree =  mm_rb_tree_create();
+    mm_struct_t * llist =  mm_llist_create();
+
+    // random insertions
+    nk_aspace_region_t reg;
+    mm_insert(rbtree, &reg);
+    mm_insert(llist, &reg);
+
+    // iterate rbtree
+    // for every region in rbtree, mm_contains(llist, region) == TRUE
+
+    // for random addr in range[start, end]
+    // mm_find_addr(rbtree, addr) == mm_find_addr(llist, addr)
+}
 
 //
 // The address space abstraction invokes this function when
