@@ -200,7 +200,7 @@ int clear_cache (nk_aspace_paging_t *p, nk_aspace_region_t *region, uint64_t thr
                 invlpg((addr_t)region->va_start + (addr_t) offset);
                 offset = offset + p->chars.granularity;
             }
-            DEBUG("virtual address cache from %016lx to %016lx are invalidated\n", region->va_start, region->pa_start);
+            DEBUG("virtual address cache from %016lx to %016lx are invalidated\n", region->va_start, region->va_start+region->len_bytes);
         }
     } else {
         // TLB shootdown???
