@@ -362,6 +362,24 @@ nk_aspace_region_t * mm_splay_tree_find_reg_at_addr (mm_struct_t * self, addr_t 
     return NULL;
 }
 
+int mm_splay_tree_node_destroy( mm_splay_tree_node_t * node) {
+    if (node != NULL) {
+        mm_splay_tree_node_destroy(node->left);
+        mm_splay_tree_node_destroy(node->right);
+        free(node);
+    }
+    return 0;
+}
+
+int mm_splay_tree_destroy(mm_struct_t * self) {
+    mm_splay_tree_t * tree = (mm_splay_tree_t *) self;
+
+    mm_splay_tree_node_destroy(tree->root);
+    free(tree);
+
+    DEBUG_SP("Done: splay tree destroyed!\n");
+    return 0;
+}
 
 
 /* Helper function for splay_tree_foreach.
@@ -399,6 +417,7 @@ int mm_splay_tree_init(mm_splay_tree_t * spt){
     spt->super.vptr->contains = &mm_splay_tree_contains;
     spt->super.vptr->find_reg_at_addr = &mm_splay_tree_find_reg_at_addr;
     spt->super.vptr->update_region = &mm_splay_tree_update_region;
+    spt->super.vptr->destroy = &mm_splay_tree_destroy;
 
     spt->root = NULL;
 
