@@ -253,7 +253,7 @@ static int add_region(void *state, nk_aspace_region_t *region)
         uint64_t offset = 0;
         int ret;
         while (offset < region->len_bytes){
-            ret = paging_helper_drill(
+            ret = paging_helper_drill_4KB(
                 p->cr3, 
                 (addr_t) region->va_start + (addr_t) offset, 
                 (addr_t) region->pa_start + (addr_t) offset, 
@@ -428,7 +428,7 @@ static int protect_region(void *state, nk_aspace_region_t *region, nk_aspace_pro
         uint64_t offset = 0;
         int ret;
         while (offset < reg_ptr->len_bytes){
-            ret = paging_helper_drill(
+            ret = paging_helper_drill_4KB(
                 p->cr3, 
                 (addr_t) reg_ptr->va_start + (addr_t) offset, 
                 (addr_t) reg_ptr->pa_start + (addr_t) offset, 
@@ -566,7 +566,7 @@ static int move_region(void *state, nk_aspace_region_t *cur_region, nk_aspace_re
         while (offset < new_region->len_bytes)
         {
             ph_pf_access_t access_type = access_from_region(new_region);
-            ret = paging_helper_drill(
+            ret = paging_helper_drill_4KB(
                 p->cr3, 
                 (addr_t) new_region->va_start + (addr_t) offset, 
                 (addr_t) new_region->pa_start + (addr_t) offset, 
@@ -710,7 +710,7 @@ static int exception(void *state, excp_entry_t *exp, excp_vec_t vec)
     if(!error.present){
         addr_t pa_todrill = (addr_t) region->pa_start + (addr_t) virtaddr - (addr_t) region->va_start;
         // DEBUG("pa_todrill = %016lx\n", pa_todrill);
-        ret = paging_helper_drill(p->cr3, (addr_t) virtaddr, pa_todrill, access_type);
+        ret = paging_helper_drill_4KB(p->cr3, (addr_t) virtaddr, pa_todrill, access_type);
         ASPACE_UNLOCK(p);
         return ret;
     }else{

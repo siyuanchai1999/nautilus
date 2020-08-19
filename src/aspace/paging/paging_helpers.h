@@ -249,8 +249,18 @@ int paging_helper_set_highest_permissions(uint64_t *entry);
 int paging_helper_walk(ph_cr3e_t cr3, addr_t vaddr, ph_pf_access_t access_type, uint64_t **entry);
 
 // build a path through the PT hierarchy to enable an access of the given type
-int paging_helper_drill(ph_cr3e_t cr3, addr_t vaddr, addr_t paddr, ph_pf_access_t access_type);
+// last level to drill = PTE, pagesize = 4K, default implementation
+int paging_helper_drill_4KB(ph_cr3e_t cr3, addr_t vaddr, addr_t paddr, ph_pf_access_t access_type);
+
+// build a path through the PT hierarchy to enable an access of the given type
+// last level to drill = PDE, pagesize = 2MB
+// have PDE.is_leaf = 1
+int paging_helper_drill_2MB(ph_cr3e_t cr3, addr_t vaddr, addr_t paddr, ph_pf_access_t access_type);
 
 
+// build a path through the PT hierarchy to enable an access of the given type
+// last level to drill = PDPE, pagesize = 1GB
+// have PDPE.is_leaf = 1
+int paging_helper_drill_1GB(ph_cr3e_t cr3, addr_t vaddr, addr_t paddr, ph_pf_access_t access_type);
 
 #endif
