@@ -1,3 +1,7 @@
+#ifndef __MM_LINKED_LIST_H__
+#define __MM_LINKED_LIST_H__
+
+
 #include "node_struct.h"
 
 typedef struct mm_llist_node {
@@ -11,3 +15,6 @@ typedef struct mm_llist {
 } mm_llist_t;
 
 mm_struct_t * mm_llist_create();
+
+
+#endif

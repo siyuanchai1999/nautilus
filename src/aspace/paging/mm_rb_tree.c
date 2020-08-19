@@ -834,7 +834,7 @@ int rb_tree_remove(mm_struct_t * self, nk_aspace_region_t * region, uint8_t chec
 
     if (!(check_flags & VA_CHECK)) {
         ERROR_RB("rb tree expect to remove regions with VA_check flag set!\n");
-        return 0;
+        return -1;
     }
     mm_rb_node_t node;
     node.region = *region;
@@ -843,13 +843,13 @@ int rb_tree_remove(mm_struct_t * self, nk_aspace_region_t * region, uint8_t chec
     
     // region not found
 
-    if (target == tree->NIL) return 0;
+    if (target == tree->NIL) return -1;
     // criterion not met
-    if (!region_equal(&target->region, region, check_flags)) return 0;
+    if (!region_equal(&target->region, region, check_flags)) return -1;
 
     rb_tree_delete_node(tree,target);
 
-    return 1;
+    return 0;
 }
 
 nk_aspace_region_t* rb_tree_contains(

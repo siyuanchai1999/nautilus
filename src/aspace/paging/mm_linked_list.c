@@ -78,14 +78,14 @@ int mm_llist_remove(mm_struct_t * self, nk_aspace_region_t * region, uint8_t che
             
             free(curr_node);
             llist->super.size = llist->super.size - 1;
-            return 1;
+            return 0;
         }
 
         prev_node = curr_node;
         curr_node = curr_node->next_llist_node;
     }
     
-    return 0;
+    return -1;
 }
 
 nk_aspace_region_t* mm_llist_contains(mm_struct_t * self, nk_aspace_region_t * region, uint8_t check_flags) {

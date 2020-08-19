@@ -153,7 +153,8 @@ typedef union ph_pdpe {  // mostly the same as pml4e, comments show diffs
 	uint_t cache_disable  : 1;
 	uint_t accessed       : 1;
 	uint_t reserved       : 1;
-	uint_t zero           : 2;  // must be zero
+	uint_t is_leaf		  : 1;
+	uint_t zero           : 1;  // must be zero
 	                            // bit 7 set makes this a huge page
 	uint_t avail1         : 3;   
 	uint64_t pd_base      : 40; // pointer to PDT (bits 12..51, bits 0..11 are zero)

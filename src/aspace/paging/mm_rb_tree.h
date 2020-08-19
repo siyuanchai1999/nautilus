@@ -1,3 +1,6 @@
+#ifndef __MM_RB_TREE_H__
+#define __MM_RB_TREE_H__
+
 #include "node_struct.h"
 
 #define RB_TREE_CHECK_AFTER_TRAVERSAL 1
@@ -27,3 +30,5 @@ typedef struct rb_tree
 
 mm_struct_t * mm_rb_tree_create();
 int rb_tree_check(mm_struct_t * self);
+
+#endif

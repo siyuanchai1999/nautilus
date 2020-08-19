@@ -44,6 +44,9 @@ typedef struct splay_tree_key_s *splay_tree_key;
    The major feature of splay trees is that all basic tree operations
    are amortized O(log n) time for a tree with n nodes.  */
 
+#ifndef __MM_SPLAY_TREE_H__
+#define __MM_SPLAY_TREE_H__
+
 #include "node_struct.h"
 
 
@@ -148,4 +151,6 @@ void mm_splay_tree_show(mm_struct_t *self);
 
 #ifdef splay_tree_prefix
 #  undef splay_tree_prefix
+#endif
+
 #endif

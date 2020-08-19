@@ -184,3 +184,24 @@ int overlap_helper(nk_aspace_region_t * regionA, nk_aspace_region_t * regionB){
 
     return 0;
 }
+
+int region2str(nk_aspace_region_t * region,  char * str) {
+    if (region == NULL){
+        sprintf(str, "NULL");
+    } else {
+        sprintf(str, "(VA=0x%016lx to PA=0x%016lx, len=%lx, prot=%lx)", 
+            region->va_start,
+            region->pa_start,
+            region->len_bytes,
+            region->protect.flags
+        );
+    }
+
+    int len = strlen(str);
+
+    if (len > REGION_STR_LEN) {
+        ERROR_PRINT("running out of allocated space when printing node!\n");
+        return -1;
+    }
+    return strlen(str);
+}

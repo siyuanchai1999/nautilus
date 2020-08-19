@@ -1,7 +1,7 @@
 #ifndef __NODE_STUCT_H__
 #define __NODE_STUCT_H__
 
-
+#define REGION_STR_LEN 128
 #include <nautilus/aspace.h>
 // #include <nautilus/paging.h>
 struct mm_struct_vtbl;
@@ -78,7 +78,9 @@ nk_aspace_region_t * mm_check_overlap(mm_struct_t * self, nk_aspace_region_t * r
 
 /*
 remove region in the data structure that is same as input region in terms of check_flags (See region_equal for details)
-if no region removed return 0
+if Removal is successful, return 0
+otherwise return -1
+
 */
 int mm_remove(mm_struct_t * self, nk_aspace_region_t * region, uint8_t check_flags);
 
@@ -168,4 +170,6 @@ int region_update(nk_aspace_region_t * dest, nk_aspace_region_t * src, uint8_t e
     If so return 1, ow. 0
 */
 int overlap_helper(nk_aspace_region_t * regionA, nk_aspace_region_t * regionB);
+
+int region2str(nk_aspace_region_t * region,  char * str);
 #endif

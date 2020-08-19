@@ -43,14 +43,17 @@
 #include <nautilus/cpu.h>
 
 #include <nautilus/aspace.h>
+#include <nautilus/random.h>
 
 #include "paging_helpers.h"
 #include "mm_linked_list.h"
 #include "mm_splay_tree.h"
 #include "mm_rb_tree.h"
 
-// #include "node_struct.h"
-// #include "test.h"
+
+// include struct_test.h to run data structure test
+// #include "struct_test.h"
+
 //
 // Add debugging and other optional output to this subsytem
 //
@@ -288,6 +291,7 @@ static int add_region(void *state, nk_aspace_region_t *region)
 
     clear_cache(p, region, THRESH);
 
+    
     ASPACE_UNLOCK(p);
     
     return 0;
@@ -801,21 +805,6 @@ static int   get_characteristics(nk_aspace_characteristics_t *c)
     return 0;
 }
 
-void rb_linked_list_test() {
-    mm_struct_t * rbtree =  mm_rb_tree_create();
-    mm_struct_t * llist =  mm_llist_create();
-
-    // random insertions
-    nk_aspace_region_t reg;
-    mm_insert(rbtree, &reg);
-    mm_insert(llist, &reg);
-
-    // iterate rbtree
-    // for every region in rbtree, mm_contains(llist, region) == TRUE
-
-    // for random addr in range[start, end]
-    // mm_find_addr(rbtree, addr) == mm_find_addr(llist, addr)
-}
 
 //
 // The address space abstraction invokes this function when
@@ -874,7 +863,13 @@ static struct nk_aspace * create(char *name, nk_aspace_characteristics_t *c)
     
     DEBUG("paging address space %s configured and initialized (returning %p)\n", name, p->aspace);
     
+#ifdef __STRUCT_TEST_H__
+    rbtree_llist_test();
+    splay_llist_test();
+    rbtree_splay_test();
     // you are returning
+    
+#endif
     return p->aspace; 
 }
 

@@ -155,7 +155,7 @@ mm_splay_tree_insert (mm_struct_t * self, nk_aspace_region_t * region)
     
     if (! node) {
         ERROR_PRINT("cannot allocate a node for splay tree data structure to track region mapping\n");
-        return 0;
+        return -1;
     }
 
   node->region = *region;
@@ -170,7 +170,7 @@ mm_splay_tree_insert (mm_struct_t * self, nk_aspace_region_t * region)
 
   if (sp->root && comparison == 0) {
     DEBUG_PRINT("Duplicate node\n");
-    return -1;
+    return -2;
   } else
     {
       /* Insert it at the root.  */
@@ -193,7 +193,7 @@ mm_splay_tree_insert (mm_struct_t * self, nk_aspace_region_t * region)
 
   sp->super.size++;
 
-  return 1;
+  return 0;
 }
 
 /* Remove node with KEY from SP.  It is not an error if it did not exist.  */
@@ -201,7 +201,10 @@ mm_splay_tree_insert (mm_struct_t * self, nk_aspace_region_t * region)
 int
 mm_splay_tree_remove (mm_struct_t * self, nk_aspace_region_t * region, uint8_t check_flags)
 {
-
+  if(!(check_flags & VA_CHECK)){
+    ERROR_SP("splay tree expect to remove regions with VA_check flag set!\n");
+    return -1;
+  }
   mm_splay_tree_t * sp = (mm_splay_tree_t *) self;
   uint64_t key = (uint64_t) region->va_start;
 
@@ -236,14 +239,14 @@ mm_splay_tree_remove (mm_struct_t * self, nk_aspace_region_t * region, uint8_t c
 	sp->root = right;
 
   free(delete_node);
-  DEBUG_PRINT("The region has been successfully removed");
+  // DEBUG_SP("The region has been successfully removed\");
 
   sp->super.size--;
 
-  return 1;
+  return 0;
     }
   else{
-    DEBUG_PRINT("No such a region found, failed to remove the region");
+    // DEBUG_SP("No such a region found, failed to remove the region\n");
     return -1;
   }
 }
