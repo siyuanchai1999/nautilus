@@ -174,7 +174,8 @@ typedef union ph_pde {  // mostly the same as pdpe, comments show diffs
 	uint_t cache_disable   : 1;
 	uint_t accessed        : 1;
 	uint_t reserved        : 1;
-	uint_t zero            : 2;  // must be zero
+	uint_t is_leaf		  : 1;
+	uint_t zero           : 1;  // must be zero
 	                             // bit 7 makes this a large page
 	                             // bit 8 makes this a global page
 	uint_t avail1          : 3;
