@@ -80,6 +80,9 @@
 #define THREAD_NAME(t) ((!(t)) ? "(none)" : (t)->is_idle ? "(idle)" : (t)->name[0] ? (t)->name : "(noname)")
 #define THRESH PAGE_SIZE_2MB
 
+#define PAGE_2MB_ENABLED 0
+#define PAGE_1GB_ENABLED 0
+
 // You probably want some sort of data structure that will let you
 // keep track of the set of regions you are asked to add/remove/change
 
@@ -229,6 +232,17 @@ static int add_region(void *state, nk_aspace_region_t *region)
     // first you should sanity check the region and then place it into
     // your region data structure
 
+    // sanity check for region validness
+    if ((addr_t) region->va_start % p->chars.alignment != 0) {
+        ERROR("region VA_start=0x%p expect to have alignment of %lx", region->va_start, p->chars.alignment);
+        return -1;
+    }
+
+    if ((addr_t) region->len_bytes % p->chars.granularity != 0) {
+        ERROR("region len_bytes=0x%lx expect to have granularity of %lx", region->len_bytes, p->chars.granularity);
+        return -1;
+    }
+
     // sanity check to be sure it doesn't overlap an existing region...
     nk_aspace_region_t * overlap_ptr = mm_check_overlap(p->paging_mm_struct, region);
     if (overlap_ptr) {
@@ -249,6 +263,7 @@ static int add_region(void *state, nk_aspace_region_t *region)
         // page table entries right now, before we return
 
         // DRILL THE PAGE TABLES HERE
+        /*
         ph_pf_access_t access_type = access_from_region(region);
         uint64_t offset = 0;
         int ret;
@@ -275,6 +290,48 @@ static int add_region(void *state, nk_aspace_region_t *region)
             offset = offset + p->chars.granularity;
         }
         DEBUG("Eager paging table drill done!\n");
+        */
+        ph_pf_access_t access_type = access_from_region(region);
+        addr_t vaddr = (addr_t) region->va_start, paddr = (addr_t)region->pa_start, remained = region->len_bytes;
+        addr_t va_end = (addr_t) region->va_start + region->len_bytes;
+        uint64_t page_granularity = 0;
+        int ret;
+        int (*paging_helper_drill) (ph_cr3e_t cr3, addr_t vaddr, addr_t paddr, ph_pf_access_t access_type);
+
+        while (vaddr < va_end) {
+            if (PAGE_1GB_ENABLED && vaddr % PAGE_SIZE_1GB == 0 && remained >= PAGE_SIZE_1GB) 
+            {
+                paging_helper_drill = &paging_helper_drill_1GB;
+                page_granularity = PAGE_SIZE_1GB;
+            } 
+            else if (PAGE_2MB_ENABLED && vaddr % PAGE_SIZE_2MB == 0 && remained >= PAGE_SIZE_2MB ) 
+            {
+                paging_helper_drill = &paging_helper_drill_2MB;
+                page_granularity = PAGE_SIZE_2MB;
+            } else {
+                // vaddr % PAGE_SIZE_4KB == 0
+                // must be the case as we require 4KB alignment
+                paging_helper_drill = &paging_helper_drill_4KB;
+                page_granularity = PAGE_SIZE_4KB;
+            }
+
+            ret = (*paging_helper_drill) (p->cr3, vaddr, paddr, access_type);
+
+            if (ret < 0) {
+                DEBUG("Failed to drill at virtual address=%p"
+                        " physical adress %p"
+                        " and ret code of %d"
+                        " page_granularity = %lx\n",
+                        vaddr, paddr, ret, page_granularity
+                );
+                ASPACE_UNLOCK(p);
+                return ret;
+            }
+
+            vaddr += page_granularity;
+            paddr += page_granularity;
+            remained -= page_granularity;
+        }
     }
     else {
         // lazy drilling 
@@ -712,6 +769,7 @@ static int exception(void *state, excp_entry_t *exp, excp_vec_t vec)
         // DEBUG("pa_todrill = %016lx\n", pa_todrill);
         ret = paging_helper_drill_4KB(p->cr3, (addr_t) virtaddr, pa_todrill, access_type);
         ASPACE_UNLOCK(p);
+        // DEBUG("done drill\n");
         return ret;
     }else{
         
