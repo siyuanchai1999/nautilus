@@ -80,8 +80,8 @@
 #define THREAD_NAME(t) ((!(t)) ? "(none)" : (t)->is_idle ? "(idle)" : (t)->name[0] ? (t)->name : "(noname)")
 #define THRESH PAGE_SIZE_2MB
 
-#define PAGE_2MB_ENABLED 0
-#define PAGE_1GB_ENABLED 0
+#define PAGE_2MB_ENABLED 1
+#define PAGE_1GB_ENABLED 1
 
 // You probably want some sort of data structure that will let you
 // keep track of the set of regions you are asked to add/remove/change
