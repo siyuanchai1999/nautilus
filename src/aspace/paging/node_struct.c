@@ -189,7 +189,7 @@ int region2str(nk_aspace_region_t * region,  char * str) {
     if (region == NULL){
         sprintf(str, "NULL");
     } else {
-        sprintf(str, "(VA=0x%016lx to PA=0x%016lx, len=%lx, prot=%lx)", 
+        sprintf(str, "(VA=0x%p to PA=0x%p, len=%lx, prot=%lx)", 
             region->va_start,
             region->pa_start,
             region->len_bytes,

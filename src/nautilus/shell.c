@@ -778,19 +778,19 @@ shell (void * in, void ** out)
 
     //nk_aspace_dump_aspaces(1);
 
-    nk_aspace_region_t reg_it, reg_overlap;
-    reg_it.pa_start = 0;
-    reg_it.len_bytes = 0x80000UL;  // 512K
-    reg_it.protect.flags = NK_ASPACE_READ | NK_ASPACE_WRITE | NK_ASPACE_EXEC | NK_ASPACE_PIN | NK_ASPACE_KERN;
-    uint64_t offset = 0;
-    // uint64_t base_offset = ;
-    for (offset = r2.len_bytes; offset <r2.len_bytes +  0x1000000UL; offset += 2 * reg_it.len_bytes) {
-        reg_it.va_start = r2.va_start + offset;
-        if (nk_aspace_add_region(mas,&reg_it)) {
-            nk_vc_printf("failed to add overlapped region to address space\n");
-            goto vc_setup;
-        }
-    }
+    // nk_aspace_region_t reg_it, reg_overlap;
+    // reg_it.pa_start = 0;
+    // reg_it.len_bytes = 0x80000UL;  // 512K
+    // reg_it.protect.flags = NK_ASPACE_READ | NK_ASPACE_WRITE | NK_ASPACE_EXEC | NK_ASPACE_PIN | NK_ASPACE_KERN;
+    // uint64_t offset = 0;
+    // // uint64_t base_offset = ;
+    // for (offset = r2.len_bytes; offset <r2.len_bytes +  0x1000000UL; offset += 2 * reg_it.len_bytes) {
+    //     reg_it.va_start = r2.va_start + offset;
+    //     if (nk_aspace_add_region(mas,&reg_it)) {
+    //         nk_vc_printf("failed to add overlapped region to address space\n");
+    //         goto vc_setup;
+    //     }
+    // }
 
 
     // // should fail region overlapped
@@ -922,7 +922,7 @@ shell (void * in, void ** out)
     // }
     
     if (nk_aspace_remove_region(mas,&r5)) {
-        nk_vc_printf("failed to add eager region r5"
+        nk_vc_printf("failed to remove eager region r5"
                     "(va=%016lx pa=%016lx len=%lx, prot=%lx)" 
                     "to address space\n",
                     r5.va_start, r5.pa_start, r5.len_bytes, r5.protect.flags    
@@ -949,7 +949,7 @@ shell (void * in, void ** out)
     nk_aspace_region_t reg;
     reg.va_start = (void*) 0x1000000000UL; // 2^6 GB
     reg.pa_start = reg.va_start;
-    reg.len_bytes = 0x10000UL;  // 2^6 KB
+    reg.len_bytes = 0x600000UL;  // 2^6 KB
     reg.protect.flags = NK_ASPACE_READ  | NK_ASPACE_EXEC | NK_ASPACE_PIN | NK_ASPACE_KERN ;
     //  reg.protect.flags =  NK_ASPACE_WRITE | NK_ASPACE_EXEC | NK_ASPACE_PIN | NK_ASPACE_KERN | NK_ASPACE_EAGER;
     
@@ -970,14 +970,45 @@ shell (void * in, void ** out)
     // nk_vc_printf("Allowable write done!\n");
 
     nk_aspace_protection_t prot;
-    prot.flags = NK_ASPACE_READ  | NK_ASPACE_WRITE | NK_ASPACE_EXEC | NK_ASPACE_PIN | NK_ASPACE_KERN ;
+    prot.flags = NK_ASPACE_READ  | NK_ASPACE_WRITE | NK_ASPACE_EXEC | NK_ASPACE_PIN | NK_ASPACE_KERN | NK_ASPACE_EAGER;
     // nk_aspace_protect(mas, &reg, &prot);
     nk_aspace_protect_region(mas, &reg, &prot);
 
     memcpy((void*)(reg.va_start), (void*)0x0, 0x4000);
     nk_vc_printf("survived writing to region with new added writing access\n");
     
-    nk_aspace_destroy(mas);
+    nk_aspace_region_t r6;
+    r6.va_start = reg.va_start + reg.len_bytes;
+    r6.pa_start = reg.va_start;
+    r6.len_bytes = reg.len_bytes;
+    r6.protect.flags = prot.flags;
+
+    if (nk_aspace_add_region(mas, &r6)) {
+        nk_vc_printf("failed to add eager region r6"
+                    "(va=%016lx pa=%016lx len=%lx, prot=%lx)" 
+                    "to address space\n",
+                    r6.va_start, r6.pa_start, r6.len_bytes, r6.protect.flags    
+        );
+	    goto vc_setup;
+    }
+
+    if (memcmp((void*) reg.va_start , (void*) r6.va_start, 0x10000)) {
+	    nk_vc_printf("Weird, r and r5  differ...\n");
+        goto vc_setup;
+    }
+    nk_vc_printf("passed comparision of reg and r6!\n");
+    
+    if (nk_aspace_remove_region(mas,&r6)) {
+        nk_vc_printf("failed to remove eager region r6"
+                    "(va=%016lx pa=%016lx len=%lx, prot=%lx)" 
+                    "to address space\n",
+                    r6.va_start, r6.pa_start, r6.len_bytes, r6.protect.flags    
+        );
+        goto vc_setup;
+    }
+
+    memcpy((void*)(reg.va_start), (void*)0x0, 0x4000);
+    nk_vc_printf("survived writing to region with new added writing access after deletion\n");
 #endif
     
  vc_setup:

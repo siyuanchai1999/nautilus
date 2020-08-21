@@ -241,12 +241,13 @@ int paging_helper_set_highest_permissions(uint64_t *entry);
 #define perm_set_highest(p) paging_helper_set_highest_permissions((uint64_t*)p)
 
 // walk page table as if we were the hardware doing an access of the given type
-// return -1 if walk results in error
-// return 0 if walk is successful, *pte points to succeeding last level PTE
-// return 1 if walk is unsuccessful, *pte points to failing PML4 entry
-// reutrn 2 if walk is unsucesssful, *pte points to failing PDPE entry
-// return 3 if walk is unsuccessful, *pte points to failing PDE entry
-// return 4 if walk is unsuccessful, *pte points to failing PTE entry
+// return 1 if walk is successful, *pte points to succeeding last level PTE
+// return 2 if walk is successful, *pte points to leaf level PDE entry (large page)
+// return 3 if walk is successful, *pte points to leaf level PDPE entry (huge page)
+// return -1 if walk is unsuccessful, *pte points to failing PTE entry
+// reutrn -2 if walk is unsucesssful, *pte points to failing PDE entry
+// return -3 if walk is unsuccessful, *pte points to failing PDPE entry
+// return -4 if walk is unsuccessful, *pte points to failing PML4E entry
 int paging_helper_walk(ph_cr3e_t cr3, addr_t vaddr, ph_pf_access_t access_type, uint64_t **entry);
 
 // build a path through the PT hierarchy to enable an access of the given type

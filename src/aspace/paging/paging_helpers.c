@@ -136,7 +136,7 @@ int paging_helper_set_highest_permissions(uint64_t *entry)
     return 0;
 }
 
-
+/*
 int paging_helper_walk(ph_cr3e_t cr3, addr_t vaddr, ph_pf_access_t access_type, uint64_t **entry)
 {
 
@@ -177,7 +177,60 @@ int paging_helper_walk(ph_cr3e_t cr3, addr_t vaddr, ph_pf_access_t access_type, 
     return 1;
     }
 }
+*/
+int paging_helper_walk(ph_cr3e_t cr3, addr_t vaddr, ph_pf_access_t access_type, uint64_t **entry) {
+    ph_pml4e_t *pml4 = (ph_pml4e_t *)PAGE_NUM_TO_ADDR_4KB(cr3.pml4_base);
+    ph_pml4e_t *pml4e = &pml4[ADDR_TO_PML4_INDEX(vaddr)];
+    
+    if (pml4e->present && perm_ok(pml4e,access_type)) {
+        ph_pdpe_t *pdp = (ph_pdpe_t *)PAGE_NUM_TO_ADDR_4KB(pml4e->pdp_base);
+        ph_pdpe_t *pdpe = &pdp[ADDR_TO_PDP_INDEX(vaddr)];
+        
+        if (pdpe->present && perm_ok(pdpe,access_type)) {
+            if(pdpe->is_leaf) {
+                // 1GB huge page
+                *entry = &pdpe->val;
+                return 3;
+            }
 
+            ph_pde_t *pd = (ph_pde_t *)PAGE_NUM_TO_ADDR_4KB(pdpe->pd_base);
+            ph_pde_t *pde = &pd[ADDR_TO_PD_INDEX(vaddr)];
+
+            if (pde->present && perm_ok(pde,access_type)) {
+                if (pde->is_leaf) {
+                    // 2MB large page
+                    *entry = &pde->val;
+                    return 2;
+                }
+
+                ph_pte_t *pt = (ph_pte_t *)PAGE_NUM_TO_ADDR_4KB(pde->pt_base);
+                ph_pte_t *pte = &pt[ADDR_TO_PT_INDEX(vaddr)];
+                if (pte->present && perm_ok(pte,access_type)) {
+                    // success 
+                    // normal 4KB page
+                    *entry = &pte->val;
+                    return 1;
+                } else {
+                    // failed at 4th level
+                    *entry = &pte->val;
+                    return -1;
+                }
+            } else {
+            // failed at 3rd level
+                *entry = &pde->val;
+                return -2;
+            }
+        } else {
+            // failed at 2nd level
+            *entry = &pdpe->val;
+            return -3;
+        }			      
+    } else {
+    // failed at first level
+        *entry = &pml4e->val;
+        return -4;
+    }
+}
 // bug:  permset at high level needs to be a union the permissions at the lower level...
 // also need to revoke permissions if we remove mappings.
 
@@ -331,7 +384,6 @@ int paging_helper_drill_4KB(ph_cr3e_t cr3, addr_t vaddr, addr_t paddr, ph_pf_acc
 
             if (pde->present) {
                 // perm_set(pde,access_type);
-                if(vaddr >= 0xffff800000000000UL) DEBUG("setting up pte\n");
                 perm_set_highest(pde);
                 ph_pte_t *pt = (ph_pte_t *)PAGE_NUM_TO_ADDR_4KB(pde->pt_base);
                 ph_pte_t *pte = &pt[ADDR_TO_PT_INDEX(vaddr)];
@@ -341,13 +393,11 @@ int paging_helper_drill_4KB(ph_cr3e_t cr3, addr_t vaddr, addr_t paddr, ph_pf_acc
                 pte->present = 1;
                 perm_set(pte,access_type);
                 pte->page_base = ADDR_TO_PAGE_NUM_4KB(paddr);
-                if(vaddr >= 0xffff800000000000UL) DEBUG("paddr = %p and pte->page_base = %lx\n", paddr, pte->page_base);
                 return 0;
             } else {
             // allocate a PT
                 ph_pte_t *pt = (ph_pte_t *)ALLOC_PHYSICAL_PAGE();
 
-                if(vaddr >= 0xffff800000000000UL) DEBUG("new pt at %p\n", pt);
                 if (!pt) {
                     ERROR("Cannot allocate PT\n");
                     return -1;
@@ -362,7 +412,6 @@ int paging_helper_drill_4KB(ph_cr3e_t cr3, addr_t vaddr, addr_t paddr, ph_pf_acc
         } else {
             // allocate a PDT
             ph_pde_t *pd = (ph_pde_t *)ALLOC_PHYSICAL_PAGE();
-            if(vaddr >= 0xffff800000000000UL) DEBUG("new pd at %p\n", pd);
             if (!pd) {
                 ERROR("Cannot allocate PDT\n");
                 return -1;
@@ -390,7 +439,7 @@ int paging_helper_drill_4KB(ph_cr3e_t cr3, addr_t vaddr, addr_t paddr, ph_pf_acc
 
 
 int paging_helper_drill_2MB(ph_cr3e_t cr3, addr_t vaddr, addr_t paddr, ph_pf_access_t access_type){
-    // DEBUG("Drilling 2MB page %016lx -> %016lx access=%08x\n", vaddr, paddr, *(uint32_t*)(&access_type));
+    DEBUG("Drilling 2MB page 0x%p -> 0x%p access=0x%08x\n", vaddr, paddr, *(uint32_t*)(&access_type));
     
     // DEBUG("Drilling 4KB page %016lx -> %016lx access=%08x\n", vaddr, paddr, *(uint32_t*)(&access_type));
     ph_pml4e_t *pml4 = (ph_pml4e_t *)PAGE_NUM_TO_ADDR_4KB(cr3.pml4_base);
@@ -411,7 +460,7 @@ int paging_helper_drill_2MB(ph_cr3e_t cr3, addr_t vaddr, addr_t paddr, ph_pf_acc
             pde->present=1;
             pde->is_leaf = 1;
             perm_set(pde,access_type);
-            pde->pt_base=ADDR_TO_PAGE_NUM_2MB(paddr);
+            pde->pt_base=PAGE_NUM_TO_ADDR_4KB(paddr);
             return 0;
             // if (pde->present) {
             //     // perm_set(pde,access_type);
@@ -470,7 +519,7 @@ int paging_helper_drill_2MB(ph_cr3e_t cr3, addr_t vaddr, addr_t paddr, ph_pf_acc
 }
 
 int paging_helper_drill_1GB(ph_cr3e_t cr3, addr_t vaddr, addr_t paddr, ph_pf_access_t access_type){
-    DEBUG("Drilling 1GB page %016lx -> %016lx access=%08x\n", vaddr, paddr, *(uint32_t*)(&access_type));
+    DEBUG("Drilling 1GB page 0x%p -> 0x%p access=0x%08x\n", vaddr, paddr, *(uint32_t*)(&access_type));
     
     // DEBUG("Drilling 4KB page %016lx -> %016lx access=%08x\n", vaddr, paddr, *(uint32_t*)(&access_type));
     ph_pml4e_t *pml4 = (ph_pml4e_t *)PAGE_NUM_TO_ADDR_4KB(cr3.pml4_base);
@@ -482,13 +531,12 @@ int paging_helper_drill_1GB(ph_cr3e_t cr3, addr_t vaddr, addr_t paddr, ph_pf_acc
         ph_pdpe_t *pdp = (ph_pdpe_t *)PAGE_NUM_TO_ADDR_4KB(pml4e->pdp_base);
         ph_pdpe_t *pdpe = &pdp[ADDR_TO_PDP_INDEX(vaddr)];
         
-        // DEBUG("setting pdpe at %p\n", pdpe);
         pdpe->val=0;
         pdpe->present=1;
         pdpe->is_leaf = 1;
         perm_set(pdpe,access_type);
-        pdpe->pd_base=ADDR_TO_PAGE_NUM_1GB(paddr);
-        DEBUG("pdpe at %p as value %lx\n", pdpe, *pdpe);
+        pdpe->pd_base = ADDR_TO_PAGE_NUM_4KB(paddr); 
+
         return 0;
         
         // if (pdpe->present) {
@@ -546,7 +594,6 @@ int paging_helper_drill_1GB(ph_cr3e_t cr3, addr_t vaddr, addr_t paddr, ph_pf_acc
             ERROR("Cannot allocate PDPT\n");
             return -1;
         }
-        DEBUG("new pdp at %p\n", pdp);
         memset(pdp,0,PAGE_SIZE_4KB);
         pml4e->present = 1;
         pml4e->pdp_base = ADDR_TO_PAGE_NUM_4KB(pdp);

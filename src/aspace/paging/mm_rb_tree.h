@@ -3,7 +3,7 @@
 
 #include "node_struct.h"
 
-#define RB_TREE_CHECK_AFTER_TRAVERSAL 1
+#define RB_TREE_CHECK_AFTER_TRAVERSAL 0
 #define MAX_DEPTH_LEVEL_ORDER_PRINT 6
 #define MAX_SIZE_INORDER_PRINT 20
 enum rb_tree_node_color {
