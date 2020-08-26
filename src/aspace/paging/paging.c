@@ -49,7 +49,7 @@
 #include "mm_linked_list.h"
 #include "mm_splay_tree.h"
 #include "mm_rb_tree.h"
-
+#include "alloc_pcid.h"
 
 // include struct_test.h to run data structure test
 // #include "struct_test.h"
@@ -81,8 +81,8 @@
 #define THRESH PAGE_SIZE_2MB
 
 #define PAGE_SIZE_512GB 0x8000000000UL
-#define PAGE_2MB_ENABLED 1
-#define PAGE_1GB_ENABLED 1
+#define PAGE_2MB_ENABLED 0
+#define PAGE_1GB_ENABLED 0
 
 // You probably want some sort of data structure that will let you
 // keep track of the set of regions you are asked to add/remove/change
@@ -110,8 +110,10 @@ typedef struct nk_aspace_paging {
 
     // The cr4 register contents used by the HW to interpret
     // your page table hierarchy.   We only care about a few bits
-#define CR4_MASK 0xb0ULL // bits 4,5,7
-    uint64_t      cr4;
+// #define CR4_MASK 0xb0ULL // bits 4,5,7
+#define CR4_MASK 0x100b0ULL // bits 4,5,7
+#define CR4_PCIDE_MASK 0x10000
+    uint64_t      cr4; 
 
 } nk_aspace_paging_t;
 
@@ -125,18 +127,27 @@ static  int destroy(void *state)
     // when you registered the address space
     nk_aspace_paging_t *p = (nk_aspace_paging_t *)state;
 
-    DEBUG("destroying address space %s\n", ASPACE_NAME(p));
+    DEBUG("destroying address space %s at %p\n", ASPACE_NAME(p), p);
 
     ASPACE_LOCK_CONF;
 
     // lets do that with a lock, perhaps? 
     ASPACE_LOCK(p);
+    DEBUG("lock acquired %p\n", &p->lock);
     //
     // WRITEME!!    actually do the work
     // 
+    DEBUG("p->paging_mm_struct at %p vptr at %p\n", p->paging_mm_struct, p->paging_mm_struct->vptr);
     mm_destory(p->paging_mm_struct);
+
+    paging_helper_free(p->cr3, 1);
+    
+    // ph_cr3_pcide_t * cr3_pcid_ptr = (ph_cr3_pcide_t *) &p->cr3;
+    // free_pcid(cr3_pcid_ptr);
+    
     free(p);
     DEBUG("Done: destroy the aspace!\n");
+    
     ASPACE_UNLOCK(p);
 
     return 0;
@@ -156,7 +167,7 @@ static int add_thread(void *state)
 }
     
     
-// The function the aspace abstraction will call when it
+// The function thscssse aspace abstraction will call when it
 // is removing from your address space
 // do you care? 
 static int remove_thread(void *state)
@@ -272,11 +283,24 @@ int eager_drill_wrapper(nk_aspace_paging_t *p, nk_aspace_region_t *region) {
         ) {
             paging_helper_drill = &paging_helper_drill_2MB;
             page_granularity = PAGE_SIZE_2MB;
-        } else {
+        } 
+        else if (
+            vaddr % PAGE_SIZE_4KB == 0 && 
+            paddr % PAGE_SIZE_4KB == 0 && 
+            remained >= PAGE_SIZE_4KB 
+        ) {
             // vaddr % PAGE_SIZE_4KB == 0
             // must be the case as we require 4KB alignment
             paging_helper_drill = &paging_helper_drill_4KB;
             page_granularity = PAGE_SIZE_4KB;
+        } else {
+            char region_buf[REGION_STR_LEN];
+            int len = region2str(region, region_buf);
+            if (len < 0) {
+                panic("bufferoverflow!");
+            }
+            ERROR("Region %s doesnot meet drill requirement at vaddr=0x%p and paddr=0x%p\n", region_buf, vaddr, paddr);
+            return -1;
         }
 
         ret = (*paging_helper_drill) (p->cr3, vaddr, paddr, access_type);
@@ -993,6 +1017,8 @@ static struct nk_aspace * create(char *name, nk_aspace_characteristics_t *c)
 	ERROR("cannot allocate paging aspace %s\n",name);
 	return 0;
     }
+
+    DEBUG("Allocate paging aspace at %p with size of %d\n", p, sizeof(*p));
   
     memset(p,0,sizeof(*p));
     
@@ -1000,14 +1026,25 @@ static struct nk_aspace * create(char *name, nk_aspace_characteristics_t *c)
 
     // initialize your region set data structure here!
     p->paging_mm_struct = mm_rb_tree_create();
-
+    DEBUG("Allocate tracking structure at %p\n", p->paging_mm_struct);
+    // p->paging_mm_struct = mm_llist_create();
     // create an initial top-level page table (PML4)
     if(paging_helper_create(&(p->cr3)) == -1){
 	ERROR("unable create aspace cr3 in address space %s\n", name);
     }
 
+    
     // note also the cr4 bits you should maintain
     p->cr4 = nk_paging_default_cr4() & CR4_MASK;
+    // if(p->cr4 | CR4_PCIDE_MASK) {
+    //     ph_cr3_pcide_t * cr3_pcid_ptr = (ph_cr3_pcide_t *) &p->cr3;
+    //     int res = alloc_pcid(cr3_pcid_ptr);
+    //     if (res) {
+    //         panic("Fail to acquire pcid!\n");
+    //     }
+
+    //     DEBUG("acquired pcid = %lx\n", cr3_pcid_ptr->pcid);
+    // }
 
     p->chars = *c;
 

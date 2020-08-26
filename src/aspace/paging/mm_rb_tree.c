@@ -488,7 +488,7 @@ void rb_tree_level_order(mm_struct_t * self) {
     
         int head = 0, tail = 0, next_power = 1, curlevel = 0;
         
-        mm_rb_node_t ** q = (mm_rb_node_t ** ) malloc(queue_size * sizeof(mm_rb_node_t *));
+        mm_rb_node_t ** q = (mm_rb_node_t ** ) MALLOC_RB(queue_size * sizeof(mm_rb_node_t *));
         mm_rb_node_t * curr = tree->root;
         
         if (curr == tree->NIL) {
@@ -898,6 +898,7 @@ int mm_rb_node_destroy(mm_rb_tree_t * tree, mm_rb_node_t * node) {
 }
 
 int mm_rb_tree_destroy(mm_struct_t * self) {
+    DEBUG_RB("Try to destroy rb tree at %p\n", self);
     mm_rb_tree_t * tree = (mm_rb_tree_t *) self;
 
     mm_rb_node_destroy(tree, tree->root);
@@ -920,8 +921,15 @@ mm_rb_node_t * create_rb_NIL() {
 }
 
 mm_struct_t * mm_rb_tree_create() {
-    mm_rb_tree_t * rbtree = (mm_rb_tree_t *) MALLOC_RB(sizeof(mm_rb_tree_t));
+    // mm_rb_tree_t * rbtree = (mm_rb_tree_t *) MALLOC_RB(sizeof(mm_rb_tree_t));
+    mm_rb_tree_t * rbtree = (mm_rb_tree_t *) malloc(sizeof(mm_rb_tree_t));
 
+    if (!rbtree) {
+        ERROR_RB("Failed to allocate rbtree with size of %d\n", sizeof(mm_rb_tree_t));
+        panic("Failed to allocate rbtree with size of %d\n", sizeof(mm_rb_tree_t));
+    }
+
+    DEBUG_RB("allocate rbtree at %p with size of %d\n",rbtree,  sizeof(mm_rb_tree_t));
     mm_struct_init(&rbtree->super);
     
     rbtree->super.vptr->insert = &rb_tree_insert;

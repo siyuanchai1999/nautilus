@@ -68,33 +68,43 @@ int paging_helper_free(ph_cr3e_t cr3, int free_data)
     ph_pml4e_t *pml4 = (ph_pml4e_t *)PAGE_NUM_TO_ADDR_4KB(cr3.pml4_base);
     
     for (i=0;i<NUM_PML4E_ENTRIES;i++) {
-    if (pml4[i].present) {
-        ph_pdpe_t *pdpe = (ph_pdpe_t *)PAGE_NUM_TO_ADDR_4KB(pml4[i].pdp_base);
-        for (j=0;j<NUM_PDPE_ENTRIES;j++) {
-        if (pdpe[j].present) {
-            ph_pde_t *pde = (ph_pde_t *)PAGE_NUM_TO_ADDR_4KB(pdpe[j].pd_base);
-            for (k=0;k<NUM_PDE_ENTRIES;k++) {
-            if (pde[k].present) {
-                ph_pte_t *pte = (ph_pte_t *)PAGE_NUM_TO_ADDR_4KB(pde[k].pt_base);
-                if (free_data) { 
-                for (l=0;l<NUM_PTE_ENTRIES;l++) {
-                    if (pte[l].present) {
-                    // data page free
-                    FREE_PHYSICAL_PAGE(PAGE_NUM_TO_ADDR_4KB(pte[l].page_base));
+        if (pml4[i].present) {
+            ph_pdpe_t *pdpe = (ph_pdpe_t *)PAGE_NUM_TO_ADDR_4KB(pml4[i].pdp_base);
+            for (j=0;j<NUM_PDPE_ENTRIES;j++) {
+                if (pdpe[j].present) {
+                    // if (pdpe[j].is_leaf && free_data) {
+                    //     FREE_PHYSICAL_PAGE(PAGE_NUM_TO_ADDR_4KB(pdpe[j].pd_base));
+                    //     continue;
+                    // } 
+
+                    ph_pde_t *pde = (ph_pde_t *)PAGE_NUM_TO_ADDR_4KB(pdpe[j].pd_base);
+                    for (k=0;k<NUM_PDE_ENTRIES;k++) {
+                        if (pde[k].present) {
+                            // if (pde[k].is_leaf && free_data) {
+                            //     FREE_PHYSICAL_PAGE(PAGE_NUM_TO_ADDR_4KB(pde[k].pt_base));
+                            //     continue;
+                            // }
+
+                            ph_pte_t *pte = (ph_pte_t *)PAGE_NUM_TO_ADDR_4KB(pde[k].pt_base);
+                            if (free_data) { 
+                                for (l=0;l<NUM_PTE_ENTRIES;l++) {
+                                    if (pte[l].present) {
+                                    // data page free
+                                    FREE_PHYSICAL_PAGE(PAGE_NUM_TO_ADDR_4KB(pte[l].page_base));
+                                    }
+                                }
+                            }
+                            // page table free
+                            FREE_PHYSICAL_PAGE(pte); 
+                        }
                     }
+                    // page directory table free
+                    FREE_PHYSICAL_PAGE(pde);
                 }
-                }
-                // page table free
-                FREE_PHYSICAL_PAGE(pte); 
             }
-            }
-            // page directory table free
-            FREE_PHYSICAL_PAGE(pde);
+            // page directory pointer table free
+            FREE_PHYSICAL_PAGE(pdpe);
         }
-        }
-        // page directory pointer table free
-        FREE_PHYSICAL_PAGE(pdpe);
-    }
     }
 
     // pml4 table free

@@ -710,6 +710,9 @@ shell (void * in, void ** out)
     }
 // ENABLE THIS CODE TO START TO TEST YOUR PAGING IMPLEMENTATION
 #ifdef NAUT_CONFIG_ASPACES
+    // set CR4.PCIDE (PCID enabled)
+    // write_cr4(read_cr4() | (1 << 17));
+
     nk_aspace_characteristics_t c;
 
     if (nk_aspace_query("paging",&c)) {
@@ -717,6 +720,11 @@ shell (void * in, void ** out)
 	goto vc_setup;
     }
     
+    nk_aspace_t *rep1 = nk_aspace_create("paging","test 1",&c);
+    nk_aspace_destroy(rep1);
+    nk_aspace_t *rep2 = nk_aspace_create("paging","test 2",&c);
+    nk_aspace_destroy(rep2);
+
     // create a new address space for this shell thread
     nk_aspace_t *mas = nk_aspace_create("paging",op->name,&c);
     
@@ -820,6 +828,8 @@ shell (void * in, void ** out)
 	nk_vc_printf("failed to move shell thread to new address space\n");
 	goto vc_setup;
     }
+
+    // set CR0.WP (write protect)
     write_cr0(read_cr0() | (1<<16));
 
     nk_vc_printf("Survived moving thread into its own address space\n");
@@ -1009,6 +1019,13 @@ shell (void * in, void ** out)
 
     memcpy((void*)(reg.va_start), (void*)0x0, 0x4000);
     nk_vc_printf("survived writing to region with new added writing access after deletion\n");
+
+    // for (int i = 0; i < 0x10; i++) {
+    //     nk_aspace_t *rep = nk_aspace_create("paging",op->name,&c);
+    //     nk_aspace_destroy(rep);
+    // }
+    
+
 #endif
     
  vc_setup:

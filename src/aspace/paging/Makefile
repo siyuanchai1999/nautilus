@@ -4,5 +4,6 @@ obj-y = paging.o\
 		mm_linked_list.o\
 		mm_splay_tree.o\
 		mm_rb_tree.o\
-		struct_test.o
+		struct_test.o \
+		alloc_pcid.o
 # obj-y = paging.o paging_helpers.o

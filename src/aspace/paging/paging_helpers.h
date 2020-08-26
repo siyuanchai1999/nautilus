@@ -123,6 +123,15 @@ typedef union ph_cr3e {
 } __attribute__((packed)) ph_cr3e_t;
 typedef ph_cr3e_t ph_ptbre_t;
 
+typedef union ph_cr3_pcide {
+    uint64_t val;
+    struct {
+	uint16_t pcid		  : 12; // pcid for current address space
+	uint64_t pml4_base    : 40; // pointer to pml4e (bits 12..51, bits 0..11 are zero)
+	uint_t res3           : 12; // reserved must be zero
+    } __attribute__((packed));
+} __attribute__((packed)) ph_cr3_pcide_t;
+
 // page table entries
 typedef union ph_pml4e {
     uint64_t  val;
