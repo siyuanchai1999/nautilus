@@ -720,10 +720,10 @@ shell (void * in, void ** out)
 	goto vc_setup;
     }
     
-    nk_aspace_t *rep1 = nk_aspace_create("paging","test 1",&c);
-    nk_aspace_destroy(rep1);
-    nk_aspace_t *rep2 = nk_aspace_create("paging","test 2",&c);
-    nk_aspace_destroy(rep2);
+    // nk_aspace_t *rep1 = nk_aspace_create("paging","test 1",&c);
+    // nk_aspace_destroy(rep1);
+    // nk_aspace_t *rep2 = nk_aspace_create("paging","test 2",&c);
+    // nk_aspace_destroy(rep2);
 
     // create a new address space for this shell thread
     nk_aspace_t *mas = nk_aspace_create("paging",op->name,&c);
@@ -752,7 +752,12 @@ shell (void * in, void ** out)
         goto vc_setup;
     }
 
-    
+    for (int i = 0; i < 0x10; i++) {
+        nk_aspace_t *rep = nk_aspace_create("paging",op->name,&c);
+        nk_aspace_add_region(rep, &r);
+        nk_aspace_destroy(rep);
+    }
+
     r1.va_start = (void*) 0x100000000UL;
     r1.pa_start = 0;
     r1.len_bytes = 0x100000000UL;  // first 4 GB are mapped
@@ -1020,10 +1025,7 @@ shell (void * in, void ** out)
     memcpy((void*)(reg.va_start), (void*)0x0, 0x4000);
     nk_vc_printf("survived writing to region with new added writing access after deletion\n");
 
-    // for (int i = 0; i < 0x10; i++) {
-    //     nk_aspace_t *rep = nk_aspace_create("paging",op->name,&c);
-    //     nk_aspace_destroy(rep);
-    // }
+
     
 
 #endif

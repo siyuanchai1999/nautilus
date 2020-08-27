@@ -129,15 +129,16 @@ static  int destroy(void *state)
 
     DEBUG("destroying address space %s at %p\n", ASPACE_NAME(p), p);
 
-    ASPACE_LOCK_CONF;
+    // ASPACE_LOCK_CONF;
 
     // lets do that with a lock, perhaps? 
-    ASPACE_LOCK(p);
-    DEBUG("lock acquired %p\n", &p->lock);
+    // DEBUG("Try lock at %p which has value of %lx \n", &p->lock, p->lock);
+    // ASPACE_LOCK(p);
+    // DEBUG("Acquired lock at %p which has value of %lx \n", &p->lock, p->lock);
     //
     // WRITEME!!    actually do the work
     // 
-    DEBUG("p->paging_mm_struct at %p vptr at %p\n", p->paging_mm_struct, p->paging_mm_struct->vptr);
+    // DEBUG("p->paging_mm_struct at %p vptr at %p\n", p->paging_mm_struct, p->paging_mm_struct->vptr);
     mm_destory(p->paging_mm_struct);
 
     paging_helper_free(p->cr3, 1);
@@ -145,11 +146,12 @@ static  int destroy(void *state)
     // ph_cr3_pcide_t * cr3_pcid_ptr = (ph_cr3_pcide_t *) &p->cr3;
     // free_pcid(cr3_pcid_ptr);
     
+    
+    
+    // ASPACE_UNLOCK(p);
+
     free(p);
     DEBUG("Done: destroy the aspace!\n");
-    
-    ASPACE_UNLOCK(p);
-
     return 0;
 }
 
@@ -390,10 +392,7 @@ static int add_region(void *state, nk_aspace_region_t *region)
     // DEBUG("after mm_insert\n");
     mm_show(p->paging_mm_struct);
 
-    
-
     clear_cache(p, region, THRESH);
-
     
     ASPACE_UNLOCK(p);
     
@@ -1018,15 +1017,22 @@ static struct nk_aspace * create(char *name, nk_aspace_characteristics_t *c)
 	return 0;
     }
 
-    DEBUG("Allocate paging aspace at %p with size of %d\n", p, sizeof(*p));
-  
+    // DEBUG("Allocate paging aspace at %p with size of %x\n", p, sizeof(*p));
+    
     memset(p,0,sizeof(*p));
     
     spinlock_init(&p->lock);
 
+    // DEBUG("lock at %p which has value of %lx \n", &p->lock, p->lock);
+    // DEBUG("paging aspace at %p has value of %lx \n", p, *p);
     // initialize your region set data structure here!
-    p->paging_mm_struct = mm_rb_tree_create();
-    DEBUG("Allocate tracking structure at %p\n", p->paging_mm_struct);
+    // p->paging_mm_struct = mm_rb_tree_create();
+    p->paging_mm_struct = mm_splay_tree_create();
+    // p->paging_mm_struct = mm_llist_create();
+
+    // DEBUG("lock at %p which has value of %lx \n", &p->lock, p->lock);
+    // DEBUG("paging aspace at %p has value of %lx \n", p, *p);
+    // DEBUG("Allocate tracking structure at %p\n", p->paging_mm_struct);
     // p->paging_mm_struct = mm_llist_create();
     // create an initial top-level page table (PML4)
     if(paging_helper_create(&(p->cr3)) == -1){
@@ -1069,7 +1075,7 @@ static struct nk_aspace * create(char *name, nk_aspace_characteristics_t *c)
 	return 0;
     }
     
-    DEBUG("paging address space %s configured and initialized (returning %p)\n", name, p->aspace);
+    DEBUG("paging address space %s configured and initialized at 0x%p (returning 0x%p)\n", name,p, p->aspace);
     
 #ifdef __STRUCT_TEST_H__
     rbtree_llist_test();
