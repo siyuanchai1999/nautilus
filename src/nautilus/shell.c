@@ -711,7 +711,7 @@ shell (void * in, void ** out)
 // ENABLE THIS CODE TO START TO TEST YOUR PAGING IMPLEMENTATION
 #ifdef NAUT_CONFIG_ASPACES
     // set CR4.PCIDE (PCID enabled)
-    // write_cr4(read_cr4() | (1 << 17));
+    write_cr4(read_cr4() | (1 << 17));
 
     nk_aspace_characteristics_t c;
 
@@ -720,10 +720,7 @@ shell (void * in, void ** out)
 	goto vc_setup;
     }
     
-    // nk_aspace_t *rep1 = nk_aspace_create("paging","test 1",&c);
-    // nk_aspace_destroy(rep1);
-    // nk_aspace_t *rep2 = nk_aspace_create("paging","test 2",&c);
-    // nk_aspace_destroy(rep2);
+
 
     // create a new address space for this shell thread
     nk_aspace_t *mas = nk_aspace_create("paging",op->name,&c);

@@ -70,9 +70,9 @@
 // Some macros to hide the details of doing locking for
 // a paging address space
 #define ASPACE_LOCK_CONF uint8_t _aspace_lock_flags
-#define ASPACE_LOCK(a) _aspace_lock_flags = spin_lock_irq_save(&(a)->lock)
-#define ASPACE_TRY_LOCK(a) spin_try_lock_irq_save(&(a)->lock,&_aspace_lock_flags)
-#define ASPACE_UNLOCK(a) spin_unlock_irq_restore(&(a)->lock, _aspace_lock_flags);
+#define ASPACE_LOCK(a) _aspace_lock_flags = spin_lock_irq_save((a)->lock)
+#define ASPACE_TRY_LOCK(a) spin_try_lock_irq_save((a)->lock,&_aspace_lock_flags)
+#define ASPACE_UNLOCK(a) spin_unlock_irq_restore((a)->lock, _aspace_lock_flags)
 #define ASPACE_UNIRQ(a) irq_enable_restore(_aspace_lock_flags);
 
 // graceful printouts of names
@@ -81,8 +81,8 @@
 #define THRESH PAGE_SIZE_2MB
 
 #define PAGE_SIZE_512GB 0x8000000000UL
-#define PAGE_2MB_ENABLED 0
-#define PAGE_1GB_ENABLED 0
+#define PAGE_2MB_ENABLED 1
+#define PAGE_1GB_ENABLED 1
 
 // You probably want some sort of data structure that will let you
 // keep track of the set of regions you are asked to add/remove/change
@@ -96,7 +96,7 @@ typedef struct nk_aspace_paging {
     nk_aspace_t *aspace;
     
     // perhaps you will want to do concurrency control?
-    spinlock_t   lock;
+    spinlock_t *  lock;
 
     // Here you probably will want your region set data structure 
     // What should it be...
@@ -129,11 +129,12 @@ static  int destroy(void *state)
 
     DEBUG("destroying address space %s at %p\n", ASPACE_NAME(p), p);
 
-    // ASPACE_LOCK_CONF;
+    ASPACE_LOCK_CONF;
 
     // lets do that with a lock, perhaps? 
     // DEBUG("Try lock at %p which has value of %lx \n", &p->lock, p->lock);
-    // ASPACE_LOCK(p);
+    spinlock_t * lock_ptr = p->lock;;
+    ASPACE_LOCK(p);
     // DEBUG("Acquired lock at %p which has value of %lx \n", &p->lock, p->lock);
     //
     // WRITEME!!    actually do the work
@@ -141,10 +142,10 @@ static  int destroy(void *state)
     // DEBUG("p->paging_mm_struct at %p vptr at %p\n", p->paging_mm_struct, p->paging_mm_struct->vptr);
     mm_destory(p->paging_mm_struct);
 
-    paging_helper_free(p->cr3, 1);
+    paging_helper_free(p->cr3, 0);
     
-    // ph_cr3_pcide_t * cr3_pcid_ptr = (ph_cr3_pcide_t *) &p->cr3;
-    // free_pcid(cr3_pcid_ptr);
+    ph_cr3_pcide_t * cr3_pcid_ptr = (ph_cr3_pcide_t *) &p->cr3;
+    free_pcid(cr3_pcid_ptr);
     
     
     
@@ -152,6 +153,9 @@ static  int destroy(void *state)
 
     free(p);
     DEBUG("Done: destroy the aspace!\n");
+
+    spin_unlock_irq_restore(lock_ptr, _aspace_lock_flags);
+    free(lock_ptr);
     return 0;
 }
 
@@ -367,7 +371,7 @@ static int add_region(void *state, nk_aspace_region_t *region)
         ASPACE_UNLOCK(p);
         return -1;
     }
-    DEBUG("no region overlapped\n");
+    // DEBUG("no region overlapped\n");
 
     if (NK_ASPACE_GET_EAGER(region->protect.flags)) {
 	
@@ -1021,20 +1025,16 @@ static struct nk_aspace * create(char *name, nk_aspace_characteristics_t *c)
     
     memset(p,0,sizeof(*p));
     
-    spinlock_init(&p->lock);
+    p->lock = (spinlock_t *) malloc(sizeof(spinlock_t));
+    spinlock_init(p->lock);
 
-    // DEBUG("lock at %p which has value of %lx \n", &p->lock, p->lock);
-    // DEBUG("paging aspace at %p has value of %lx \n", p, *p);
+
     // initialize your region set data structure here!
     // p->paging_mm_struct = mm_rb_tree_create();
     p->paging_mm_struct = mm_splay_tree_create();
     // p->paging_mm_struct = mm_llist_create();
 
-    // DEBUG("lock at %p which has value of %lx \n", &p->lock, p->lock);
-    // DEBUG("paging aspace at %p has value of %lx \n", p, *p);
-    // DEBUG("Allocate tracking structure at %p\n", p->paging_mm_struct);
-    // p->paging_mm_struct = mm_llist_create();
-    // create an initial top-level page table (PML4)
+    
     if(paging_helper_create(&(p->cr3)) == -1){
 	ERROR("unable create aspace cr3 in address space %s\n", name);
     }
@@ -1042,15 +1042,15 @@ static struct nk_aspace * create(char *name, nk_aspace_characteristics_t *c)
     
     // note also the cr4 bits you should maintain
     p->cr4 = nk_paging_default_cr4() & CR4_MASK;
-    // if(p->cr4 | CR4_PCIDE_MASK) {
-    //     ph_cr3_pcide_t * cr3_pcid_ptr = (ph_cr3_pcide_t *) &p->cr3;
-    //     int res = alloc_pcid(cr3_pcid_ptr);
-    //     if (res) {
-    //         panic("Fail to acquire pcid!\n");
-    //     }
+    if(p->cr4 | CR4_PCIDE_MASK) {
+        ph_cr3_pcide_t * cr3_pcid_ptr = (ph_cr3_pcide_t *) &p->cr3;
+        int res = alloc_pcid(cr3_pcid_ptr);
+        if (res) {
+            panic("Fail to acquire pcid!\n");
+        }
 
-    //     DEBUG("acquired pcid = %lx\n", cr3_pcid_ptr->pcid);
-    // }
+        DEBUG("acquired pcid = %lx\n", cr3_pcid_ptr->pcid);
+    }
 
     p->chars = *c;
 
