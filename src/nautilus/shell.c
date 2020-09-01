@@ -683,6 +683,23 @@ user_typed (char * buf, void * priv, int offset)
 }
 
 
+// inline void
+// msr_write (uint32_t msr, uint64_t data)
+// {
+//     uint32_t lo = data;
+//     uint32_t hi = data >> 32;
+//     asm volatile("wrmsr" : : "c"(msr), "a"(lo), "d"(hi));
+// }
+
+// inline uint64_t
+// msr_read (uint32_t msr)
+// {
+//     uint32_t lo, hi;
+//     asm volatile("rdmsr" : "=a"(lo), "=d"(hi) : "c"(msr));
+//     return ((uint64_t)hi << 32) | lo;
+// }
+
+
 static void 
 shell (void * in, void ** out)
 {
@@ -730,6 +747,12 @@ shell (void * in, void ** out)
 	nk_vc_printf("failed to create new address space\n");
 	goto vc_setup;
     }
+
+
+
+    // start counting the performance
+    unsigned long v1 = rdtsc();
+    nk_vc_printf("The performance counter now is : %lu\n",v1);
 
 
     nk_aspace_region_t r, r1, r2;
@@ -888,6 +911,7 @@ shell (void * in, void ** out)
     r4.protect.flags = NK_ASPACE_READ | NK_ASPACE_WRITE | NK_ASPACE_EXEC | NK_ASPACE_PIN | NK_ASPACE_KERN | NK_ASPACE_EAGER;
 
 
+
     if (nk_aspace_add_region(mas,&r4)) {
         nk_vc_printf("failed to add eager region r4"
                     "(va=%016lx pa=%016lx len=%lx, prot=%lx)" 
@@ -900,6 +924,7 @@ shell (void * in, void ** out)
     if (memcmp(r3.va_start, r4.va_start, 0x10000)) {
 	    nk_vc_printf("Weird, r3 and r4  differ...\n");
     }
+
     
     nk_vc_printf("Survived memory comparison of r3 and r4\n");
 
@@ -1020,6 +1045,14 @@ shell (void * in, void ** out)
     }
 
     memcpy((void*)(reg.va_start), (void*)0x0, 0x4000);
+
+
+    unsigned long v2 = rdtsc();
+    
+    nk_vc_printf("The performance counter at the start was : %lu\n",v1);
+    nk_vc_printf("The performance counter now after allocation finished is : %lu\n",v2);
+    nk_vc_printf("The RDTSC performance counter result is %lu\n", v2-v1);
+
     nk_vc_printf("survived writing to region with new added writing access after deletion\n");
 
 
