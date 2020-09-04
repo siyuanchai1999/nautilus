@@ -745,7 +745,6 @@ shell (void * in, void ** out)
 	goto vc_setup;
     }
     
-<<<<<<< HEAD
     // testing pcid
     /*
     const int CREAT_LEN = 0x100;
@@ -779,8 +778,6 @@ shell (void * in, void ** out)
     }
     free(aspace_arr);
     */
-=======
->>>>>>> d08d16135932758bd61988612313fa8cfe1f1e2a
     // create a new address space for this shell thread
     nk_aspace_t *mas = nk_aspace_create("paging",op->name,&c);
     

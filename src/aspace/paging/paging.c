@@ -148,7 +148,6 @@ typedef struct nk_aspace_paging {
     #define CR4_MASK 0xb0ULL // bits 4,5,7
 #endif
 
-
     uint64_t      cr4; 
 
 } nk_aspace_paging_t;
