@@ -24,6 +24,10 @@
 #include <nautilus/nautilus.h>
 #include <nautilus/shell.h>
 #include <nautilus/vc.h>
+#include <nautilus/pmc.h>
+#include <nautilus/monitor.h>
+#include <dev/serial.h>
+
 
 #ifndef NAUT_CONFIG_DEBUG_SHELL
 #undef DEBUG_PRINT
@@ -34,6 +38,10 @@
 #define DEBUG(fmt, args...) DEBUG_PRINT("SHELL: " fmt, ##args)
 #define WARN(fmt, args...)  WARN_PRINT("SHELL: " fmt, ##args)
 #define ERROR(fmt, args...) ERROR_PRINT("SHELL: " fmt, ##args)
+#define O_RDWR 0x0002
+#define O_NOCTTY 0x20000
+#define O_NDELAY 1
+#define F_SETFL 4
 
 #define CHAR_TO_IDX(k) (tolower((k)) - 'a')
 
@@ -737,8 +745,6 @@ shell (void * in, void ** out)
 	goto vc_setup;
     }
     
-
-
     // create a new address space for this shell thread
     nk_aspace_t *mas = nk_aspace_create("paging",op->name,&c);
     
@@ -748,11 +754,16 @@ shell (void * in, void ** out)
 	goto vc_setup;
     }
 
-
-
+    // nk_monitor_entry();
     // start counting the performance
+
+
     unsigned long v1 = rdtsc();
     nk_vc_printf("The performance counter now is : %lu\n",v1);
+    perf_event_t * event = nk_pmc_create(INTEL_DTLB_LOAD_MISS_WALK);
+    nk_pmc_start(event);
+    uint64_t reading1 = nk_pmc_read(event);
+    nk_vc_printf("The pmc reading is : %lu\n", reading1);
 
 
     nk_aspace_region_t r, r1, r2;
@@ -1048,15 +1059,17 @@ shell (void * in, void ** out)
 
 
     unsigned long v2 = rdtsc();
-    
+    uint64_t reading = nk_pmc_read(event);
+    nk_vc_printf("The pmc reading is : %lu\n", reading);
+
+    nk_pmc_stop(event);
+    nk_pmc_destroy(event);
+
     nk_vc_printf("The performance counter at the start was : %lu\n",v1);
-    nk_vc_printf("The performance counter now after allocation finished is : %lu\n",v2);
+    nk_vc_printf("The performance counter now after allocation fsshed is : %lu\n",v2);
     nk_vc_printf("The RDTSC performance counter result is %lu\n", v2-v1);
 
     nk_vc_printf("survived writing to region with new added writing access after deletion\n");
-
-
-    
 
 #endif
     
