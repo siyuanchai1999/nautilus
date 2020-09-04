@@ -729,7 +729,7 @@ shell (void * in, void ** out)
 #ifdef NAUT_CONFIG_ASPACES
     // set CR4.PCIDE (PCID enabled)
     write_cr4(read_cr4() | (1 << 17));
-
+    nk_vc_printf("cr4=%lx\n", read_cr4());
     nk_aspace_characteristics_t c;
 
     if (nk_aspace_query("paging",&c)) {
@@ -737,8 +737,39 @@ shell (void * in, void ** out)
 	goto vc_setup;
     }
     
+    // testing pcid
+    /*
+    const int CREAT_LEN = 0x100;
+    int step = 0x9;
+    nk_aspace_region_t pcid_region = {
+        .va_start = 0,
+        .pa_start = 0,
+        .len_bytes = 0x100000000UL,
+        .protect.flags = NK_ASPACE_READ | NK_ASPACE_WRITE | NK_ASPACE_EXEC | NK_ASPACE_PIN | NK_ASPACE_KERN | NK_ASPACE_EAGER
+    };
+    nk_aspace_t **aspace_arr = (nk_aspace_t **) malloc(sizeof(nk_aspace_t *) * CREAT_LEN);
+    for (int i = 0; i < CREAT_LEN; i++) {
+        
+        aspace_arr[i] = nk_aspace_create("paging",op->name,&c);
+        nk_aspace_add_region(aspace_arr[i], &pcid_region);
+        // if (i % 0x10 == 0)  nk_aspace_destroy(aspace_arr);
+    }
 
+    for (int i = 0; i < CREAT_LEN; i+=step) {
+        nk_aspace_destroy(aspace_arr[i]);
+    }
 
+    for (int i = 0; i < CREAT_LEN; i+=step) {
+        
+        aspace_arr[i] = nk_aspace_create("paging",op->name,&c);
+        nk_aspace_add_region(aspace_arr[i], &pcid_region);
+        // if (i % 0x10 == 0)  nk_aspace_destroy(aspace_arr);
+    }
+    for (int i = 0; i < CREAT_LEN; i++) {
+        nk_aspace_destroy(aspace_arr[i]);
+    }
+    free(aspace_arr);
+    */
     // create a new address space for this shell thread
     nk_aspace_t *mas = nk_aspace_create("paging",op->name,&c);
     
@@ -772,11 +803,9 @@ shell (void * in, void ** out)
         goto vc_setup;
     }
 
-    for (int i = 0; i < 0x10; i++) {
-        nk_aspace_t *rep = nk_aspace_create("paging",op->name,&c);
-        nk_aspace_add_region(rep, &r);
-        nk_aspace_destroy(rep);
-    }
+
+    
+    
 
     r1.va_start = (void*) 0x100000000UL;
     r1.pa_start = 0;
@@ -908,9 +937,7 @@ shell (void * in, void ** out)
     r4.va_start = (void*) 0x300000000UL;
     r4.pa_start = (void*) 0x200000000UL;
     r4.len_bytes = 0x100000000UL;
-    r4.protect.flags = NK_ASPACE_READ | NK_ASPACE_WRITE | NK_ASPACE_EXEC | NK_ASPACE_PIN | NK_ASPACE_KERN | NK_ASPACE_EAGER;
-
-
+    r4.protect.flags = NK_ASPACE_READ | NK_ASPACE_WRITE | NK_ASPACE_EXEC | NK_ASPACE_KERN | NK_ASPACE_EAGER;
 
     if (nk_aspace_add_region(mas,&r4)) {
         nk_vc_printf("failed to add eager region r4"
@@ -1001,16 +1028,25 @@ shell (void * in, void ** out)
     
     nk_vc_printf("Survived region adding region reg\n");
     
-
+    if (nk_aspace_remove_region(mas,&reg)) {
+        nk_vc_printf("Expected: fail to remove eager region reg"
+                    "(va=%016lx pa=%016lx len=%lx, prot=%lx)" 
+                    "in address space\n",
+                    reg.va_start, reg.pa_start, reg.len_bytes, reg.protect.flags    
+        );
+    } else {
+        nk_vc_printf("ERROR: remove pinned region!\n");
+    }
     // memcmp((void*)(reg.va_start),(void*)(reg.va_start), 0x4000);
     // memcpy((void*)(reg.va_start),(void*)0x0, 0x4000);
     // nk_vc_printf("Allowable write done!\n");
 
     nk_aspace_protection_t prot;
-    prot.flags = NK_ASPACE_READ  | NK_ASPACE_WRITE | NK_ASPACE_EXEC | NK_ASPACE_PIN | NK_ASPACE_KERN | NK_ASPACE_EAGER;
+    prot.flags = NK_ASPACE_READ  | NK_ASPACE_WRITE | NK_ASPACE_EXEC | NK_ASPACE_KERN | NK_ASPACE_EAGER;
     // nk_aspace_protect(mas, &reg, &prot);
     nk_aspace_protect_region(mas, &reg, &prot);
-
+    reg.protect = prot;
+    
     memcpy((void*)(reg.va_start), (void*)0x0, 0x4000);
     nk_vc_printf("survived writing to region with new added writing access\n");
     
@@ -1038,13 +1074,20 @@ shell (void * in, void ** out)
     if (nk_aspace_remove_region(mas,&r6)) {
         nk_vc_printf("failed to remove eager region r6"
                     "(va=%016lx pa=%016lx len=%lx, prot=%lx)" 
-                    "to address space\n",
+                    "in address space\n",
                     r6.va_start, r6.pa_start, r6.len_bytes, r6.protect.flags    
         );
         goto vc_setup;
     }
 
-    memcpy((void*)(reg.va_start), (void*)0x0, 0x4000);
+    if (nk_aspace_remove_region(mas,&reg)) {
+        nk_vc_printf("Error: failed to remove eager region reg"
+                    "(va=%016lx pa=%016lx len=%lx, prot=%lx)" 
+                    "in address space\n",
+                    reg.va_start, reg.pa_start, reg.len_bytes, reg.protect.flags    
+        );
+        goto vc_setup;
+    }
 
 
     unsigned long v2 = rdtsc();
