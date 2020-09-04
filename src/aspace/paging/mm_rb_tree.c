@@ -1,6 +1,11 @@
 #include "mm_rb_tree.h"
 #include <nautilus/nautilus.h>
 
+#ifndef NAUT_CONFIG_DEBUG_ASPACE_PAGING
+#undef DEBUG_PRINT
+#define DEBUG_PRINT(fmt, args...) 
+#endif
+
 #define ERROR_RB(fmt, args...) ERROR_PRINT("aspace-paging-rbtree: " fmt, ##args)
 #define DEBUG_RB(fmt, args...) DEBUG_PRINT("aspace-paging-rbtree: " fmt, ##args)
 #define INFO_RB(fmt, args...)   INFO_PRINT("aspace-paging-rbtree: " fmt, ##args)

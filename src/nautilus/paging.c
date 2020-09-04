@@ -683,6 +683,11 @@ kern_ident_map (struct nk_mem_info * mem, ulong_t mbd)
     default_cr3 = (ulong_t)pml;
     default_cr4 = (ulong_t)read_cr4();
 
+#ifdef NAUT_CONFIG_ASPACE_PAGING_PCID
+    // set CR4.PCIDE bit 17
+    default_cr4 |= ( (uint64_t) 1 << 17);
+    write_cr4(default_cr4);
+#endif
     /* install the new tables, this will also flush the TLB */
     write_cr3((ulong_t)pml);
     

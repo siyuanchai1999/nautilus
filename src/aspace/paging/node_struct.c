@@ -79,7 +79,7 @@ int mm_struct_init(mm_struct_t * self) {
 
 mm_struct_t * mm_struct_create() {
 
-    // should be called
+    // should NOT be called
     mm_struct_t *my_struct = (mm_struct_t *) malloc(sizeof(mm_struct_t));
 
     if (! my_struct) {
@@ -200,7 +200,7 @@ int region2str(nk_aspace_region_t * region,  char * str) {
     int len = strlen(str);
 
     if (len > REGION_STR_LEN) {
-        ERROR_PRINT("running out of allocated space when printing node!\n");
+        panic("running out of allocated space when printing node!\n");
         return -1;
     }
     return strlen(str);

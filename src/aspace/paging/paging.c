@@ -46,10 +46,30 @@
 #include <nautilus/random.h>
 
 #include "paging_helpers.h"
-#include "mm_linked_list.h"
-#include "mm_splay_tree.h"
-#include "mm_rb_tree.h"
-#include "alloc_pcid.h"
+
+#ifdef NAUT_CONFIG_ASPACE_PAGING_REGION_RB_TREE
+    #include "mm_rb_tree.h"
+
+#elif defined NAUT_CONFIG_ASPACE_PAGING_REGION_SPLAY_TREE
+    #include "mm_splay_tree.h"
+
+#elif defined NAUT_CONFIG_ASPACE_PAGING_REGION_LINKED_LIST
+    #include "mm_linked_list.h"
+
+#else
+    #include "node_struct.h"
+    
+#endif
+
+#ifdef NAUT_CONFIG_ASPACE_PAGING_REGION_STRUCT_TEST
+    #include "struct_test.h"
+#endif
+
+#ifdef NAUT_CONFIG_ASPACE_PAGING_PCID
+    #include "alloc_pcid.h"
+#endif
+
+
 
 // include struct_test.h to run data structure test
 // #include "struct_test.h"
@@ -81,8 +101,18 @@
 #define THRESH PAGE_SIZE_2MB
 
 #define PAGE_SIZE_512GB 0x8000000000UL
-#define PAGE_2MB_ENABLED 1
-#define PAGE_1GB_ENABLED 1
+
+#ifdef NAUT_CONFIG_ASPACE_PAGING_1GB
+    #define PAGE_1GB_ENABLED 1
+#else
+    #define PAGE_1GB_ENABLED 0
+#endif
+
+#ifdef NAUT_CONFIG_ASPACE_PAGING_2MB
+    #define PAGE_2MB_ENABLED 1
+#else
+    #define PAGE_2MB_ENABLED 0
+#endif
 
 // You probably want some sort of data structure that will let you
 // keep track of the set of regions you are asked to add/remove/change
@@ -111,8 +141,14 @@ typedef struct nk_aspace_paging {
     // The cr4 register contents used by the HW to interpret
     // your page table hierarchy.   We only care about a few bits
 // #define CR4_MASK 0xb0ULL // bits 4,5,7
-#define CR4_MASK 0x100b0ULL // bits 4,5,7
-#define CR4_PCIDE_MASK 0x10000
+#ifdef NAUT_CONFIG_ASPACE_PAGING_PCID
+    #define CR4_MASK 0x200b0ULL // bits 4,5,7, 17
+    #define CR4_PCIDE_MASK 0x20000
+#else
+    #define CR4_MASK 0xb0ULL // bits 4,5,7
+#endif
+
+
     uint64_t      cr4; 
 
 } nk_aspace_paging_t;
@@ -144,10 +180,15 @@ static  int destroy(void *state)
 
     paging_helper_free(p->cr3, 0);
     
-    ph_cr3_pcide_t * cr3_pcid_ptr = (ph_cr3_pcide_t *) &p->cr3;
-    free_pcid(cr3_pcid_ptr);
+#ifdef NAUT_CONFIG_ASPACE_PAGING_PCID
+    if(p->cr4 & CR4_PCIDE_MASK) {
+        ph_cr3_pcide_t * cr3_pcid_ptr = (ph_cr3_pcide_t *) &p->cr3;
+        free_pcid(cr3_pcid_ptr);
+    }
+#endif
     
     
+    nk_aspace_unregister(p->aspace);
     
     // ASPACE_UNLOCK(p);
 
@@ -215,17 +256,22 @@ int clear_cache (nk_aspace_paging_t *p, nk_aspace_region_t *region, uint64_t thr
     // flushes the TLB
 
     if (p->aspace == get_cpu()->cur_aspace) {
-        if (region->len_bytes > threshold) {
             write_cr3(p->cr3.val);
             DEBUG("flush TLB DONE!\n");
-        } else {
-            uint64_t offset = 0;
-            while (offset < region->len_bytes) {
-                invlpg((addr_t)region->va_start + (addr_t) offset);
-                offset = offset + p->chars.granularity;
-            }
-            DEBUG("virtual address cache from %016lx to %016lx are invalidated\n", region->va_start, region->va_start+region->len_bytes);
-        }
+        // if (region->len_bytes > threshold) {
+        //     write_cr3(p->cr3.val);
+        //     DEBUG("flush TLB DONE!\n");
+        // } else {
+        //     uint64_t offset = 0;
+        //     while (offset < region->len_bytes) {
+        //         invlpg((addr_t)region->va_start + (addr_t) offset);
+        //         offset = offset + p->chars.granularity;
+        //     }
+        //     DEBUG("virtual address cache from %016lx to %016lx are invalidated\n", 
+        //         region->va_start, 
+        //         region->va_start + region->len_bytes
+        //     );
+        // }
     } else {
         // TLB shootdown???
     }
@@ -301,10 +347,7 @@ int eager_drill_wrapper(nk_aspace_paging_t *p, nk_aspace_region_t *region) {
             page_granularity = PAGE_SIZE_4KB;
         } else {
             char region_buf[REGION_STR_LEN];
-            int len = region2str(region, region_buf);
-            if (len < 0) {
-                panic("bufferoverflow!");
-            }
+            region2str(region, region_buf);
             ERROR("Region %s doesnot meet drill requirement at vaddr=0x%p and paddr=0x%p\n", region_buf, vaddr, paddr);
             return -1;
         }
@@ -336,10 +379,7 @@ static int add_region(void *state, nk_aspace_region_t *region)
     nk_aspace_paging_t *p = (nk_aspace_paging_t *)state;
 
     char region_buf[REGION_STR_LEN];
-    int len = region2str(region, region_buf);
-    if (len < 0) {
-        panic("bufferoverflow!");
-    }
+    region2str(region, region_buf);
     DEBUG("adding region %s to address space %s\n", region_buf, ASPACE_NAME(p));
 
     ASPACE_LOCK_CONF;
@@ -423,6 +463,14 @@ static int remove_region(void *state, nk_aspace_region_t *region)
     
     // first, find the region in your data structure
     // it had better exist and be identical.
+    if (NK_ASPACE_GET_PIN(region->protect.flags)) {
+        char buf[REGION_STR_LEN];
+        region2str(region, buf);
+        ERROR("Cannot remove pinned region%s\n", buf);
+        ASPACE_UNLOCK(p);
+        return -1;
+    }
+
     uint8_t check_flag = VA_CHECK | PA_CHECK | LEN_CHECK | PROTECT_CHECK;
     int remove_failed = mm_remove(p->paging_mm_struct, region, check_flag);
 
@@ -629,10 +677,19 @@ static int move_region(void *state, nk_aspace_region_t *cur_region, nk_aspace_re
         return ret;
     }
 
+    
     uint8_t check_flag = VA_CHECK | LEN_CHECK | PROTECT_CHECK;
     int reg_eq = region_equal(cur_region, new_region, check_flag);
     if (!reg_eq) {
         DEBUG("regions differ in attributes other than physical address!\n");
+        ASPACE_UNLOCK(p);
+        return -1;
+    }
+
+    if (NK_ASPACE_GET_PIN(cur_region->protect.flags)) {
+        char buf[REGION_STR_LEN];
+        region2str(cur_region, buf);
+        ERROR("Cannot move pinned region%s\n", buf);
         ASPACE_UNLOCK(p);
         return -1;
     }
@@ -1030,28 +1087,43 @@ static struct nk_aspace * create(char *name, nk_aspace_characteristics_t *c)
 
 
     // initialize your region set data structure here!
-    // p->paging_mm_struct = mm_rb_tree_create();
-    p->paging_mm_struct = mm_splay_tree_create();
-    // p->paging_mm_struct = mm_llist_create();
 
+#ifdef NAUT_CONFIG_ASPACE_PAGING_REGION_RB_TREE
+    p->paging_mm_struct = mm_rb_tree_create();
+
+#elif defined NAUT_CONFIG_ASPACE_PAGING_REGION_SPLAY_TREE
+    p->paging_mm_struct = mm_splay_tree_create();
+
+#elif defined NAUT_CONFIG_ASPACE_PAGING_REGION_LINKED_LIST
+    p->paging_mm_struct = mm_llist_create();
+
+#else
+    p->paging_mm_struct = mm_struct_create();
+    
+#endif
     
     if(paging_helper_create(&(p->cr3)) == -1){
-	ERROR("unable create aspace cr3 in address space %s\n", name);
+	    ERROR("unable create aspace cr3 in address space %s\n", name);
+        return 0;
     }
 
     
     // note also the cr4 bits you should maintain
+    DEBUG("default cr4=%lx\n", nk_paging_default_cr4());
     p->cr4 = nk_paging_default_cr4() & CR4_MASK;
-    if(p->cr4 | CR4_PCIDE_MASK) {
+    DEBUG("p->cr4=%lx\n", p->cr4);
+
+#ifdef NAUT_CONFIG_ASPACE_PAGING_PCID
+    if(p->cr4 & CR4_PCIDE_MASK) {
         ph_cr3_pcide_t * cr3_pcid_ptr = (ph_cr3_pcide_t *) &p->cr3;
         int res = alloc_pcid(cr3_pcid_ptr);
         if (res) {
             panic("Fail to acquire pcid!\n");
         }
-
+        
         DEBUG("acquired pcid = %lx\n", cr3_pcid_ptr->pcid);
     }
-
+#endif
     p->chars = *c;
 
     // if we supported address spaces other than long mode
@@ -1062,8 +1134,9 @@ static struct nk_aspace * create(char *name, nk_aspace_characteristics_t *c)
     // the registration process returns a pointer to the abstract
     // address space that the rest of the system will use
     p->aspace = nk_aspace_register(name,
-				   // we want both page faults and general protection faults
-				   NK_ASPACE_HOOK_PF | NK_ASPACE_HOOK_GPF,
+				   // we want both page faults and general protection faults (NO, no GPF)
+				//    NK_ASPACE_HOOK_PF | NK_ASPACE_HOOK_GPF,
+                    NK_ASPACE_HOOK_PF,
 				   // our interface functions (see above)
 				   &paging_interface,
 				   // our state, which will be passed back
@@ -1077,13 +1150,12 @@ static struct nk_aspace * create(char *name, nk_aspace_characteristics_t *c)
     
     DEBUG("paging address space %s configured and initialized at 0x%p (returning 0x%p)\n", name,p, p->aspace);
     
-#ifdef __STRUCT_TEST_H__
+#ifdef NAUT_CONFIG_ASPACE_PAGING_REGION_STRUCT_TEST
     rbtree_llist_test();
     splay_llist_test();
     rbtree_splay_test();
-    // you are returning
-    
 #endif
+    // you are returning the aspace pointer
     return p->aspace; 
 }
 

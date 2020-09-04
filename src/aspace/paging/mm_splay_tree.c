@@ -32,6 +32,11 @@
 #include <nautilus/nautilus.h>
 #include "mm_splay_tree.h"
 
+#ifndef NAUT_CONFIG_DEBUG_ASPACE_PAGING
+#undef DEBUG_PRINT
+#define DEBUG_PRINT(fmt, args...) 
+#endif
+
 #define ERROR_SP(fmt, args...) ERROR_PRINT("aspace-paging-splay-tree: " fmt, ##args)
 #define DEBUG_SP(fmt, args...) DEBUG_PRINT("aspace-paging-splay-tree: " fmt, ##args)
 #define INFO_SP(fmt, args...)   INFO_PRINT("aspace-paging-splay-tree: " fmt, ##args)

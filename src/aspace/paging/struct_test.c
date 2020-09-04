@@ -5,6 +5,11 @@
 #include <nautilus/random.h>
 #include <nautilus/nautilus.h>
 
+#ifndef NAUT_CONFIG_DEBUG_ASPACE_PAGING
+#undef DEBUG_PRINT
+#define DEBUG_PRINT(fmt, args...) 
+#endif
+
 #define ERROR_TEST(fmt, args...) ERROR_PRINT("aspace-paging-struct-test: " fmt, ##args)
 #define DEBUG_TEST(fmt, args...) DEBUG_PRINT("aspace-paging-struct-test: " fmt, ##args)
 #define INFO_TEST(fmt, args...)   INFO_PRINT("aspace-paging-struct-test: " fmt, ##args)

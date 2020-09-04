@@ -1,10 +1,11 @@
 #include "mm_linked_list.h"
 #include <nautilus/nautilus.h>
 
-// #define ERROR_LLIST(fmt, args...) ERROR_PRINT("aspace-paging-llist: " fmt, ##args)
-// #define DEBUG_LLIST(fmt, args...) DEBUG_PRINT("aspace-paging-llist: " fmt, ##args)
-// #define INFO_LLIST(fmt, args...)   INFO_PRINT("aspace-paging-llist: " fmt, ##args)
-// #define MALLOC_LLIST(n) ({void *__p = malloc(n); if (!__p) { ERROR_RB("Malloc failed\n"); panic("Malloc failed\n"); } __p;})
+#ifndef NAUT_CONFIG_DEBUG_ASPACE_PAGING
+#undef DEBUG_PRINT
+#define DEBUG_PRINT(fmt, args...) 
+#endif
+
 
 #define ERROR_LLIST(fmt, args...) ERROR_PRINT("aspace-paging-llist: " fmt, ##args)
 #define DEBUG_LLIST(fmt, args...) DEBUG_PRINT("aspace-paging-llist: " fmt, ##args)
