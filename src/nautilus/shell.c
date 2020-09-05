@@ -736,8 +736,8 @@ shell (void * in, void ** out)
 // ENABLE THIS CODE TO START TO TEST YOUR PAGING IMPLEMENTATION
 #ifdef NAUT_CONFIG_ASPACES
     // set CR4.PCIDE (PCID enabled)
-    write_cr4(read_cr4() | (1 << 17));
-    nk_vc_printf("cr4=%lx\n", read_cr4());
+    // write_cr4(read_cr4() | (1 << 17));
+    // nk_vc_printf("cr4=%lx\n", read_cr4());
     nk_aspace_characteristics_t c;
 
     if (nk_aspace_query("paging",&c)) {
@@ -793,10 +793,6 @@ shell (void * in, void ** out)
 
     unsigned long v1 = rdtsc();
     nk_vc_printf("The performance counter now is : %lu\n",v1);
-    perf_event_t * event = nk_pmc_create(INTEL_DTLB_LOAD_MISS_WALK);
-    nk_pmc_start(event);
-    uint64_t reading1 = nk_pmc_read(event);
-    nk_vc_printf("The pmc reading is : %lu\n", reading1);
 
 
     nk_aspace_region_t r, r1, r2;
@@ -1103,16 +1099,168 @@ shell (void * in, void ** out)
     }
 
 
-    unsigned long v2 = rdtsc();
+    perf_event_t * event = nk_pmc_create(INTEL_DTLB_LOAD_MISS_WALK);
+    nk_pmc_start(event);
+
+
+    nk_aspace_t *mas1 = nk_aspace_create("paging",op->name,&c);
+    nk_aspace_t *mas2 = nk_aspace_create("paging",op->name,&c);
+
+    if (nk_aspace_add_region(mas1, &r)) {
+        nk_vc_printf("failed to add eager region r in aspace1"
+                    "(va=%016lx pa=%016lx len=%lx, prot=%lx)" 
+                    "to address space\n",
+                    r.va_start, r.pa_start, r.len_bytes, r.protect.flags    
+        );
+	    goto vc_setup;
+    }
+
+    if (nk_aspace_add_region(mas2, &r)) {
+        nk_vc_printf("failed to add eager region r in aspace2"
+                    "(va=%016lx pa=%016lx len=%lx, prot=%lx)" 
+                    "to address space\n",
+                    r.va_start, r.pa_start, r.len_bytes, r.protect.flags    
+        );
+	    goto vc_setup;
+    }
+
+
+
+
+    //1st time
+    if (nk_aspace_move_thread(mas1)) {
+	nk_vc_printf("failed to move shell thread to new address space\n");
+	goto vc_setup;
+    }
+
+    if (memcmp((void*) r.va_start , (void*) r.va_start, 0x400)) {
+	    nk_vc_printf("Weird, r and r  differ...\n");
+        goto vc_setup;
+    }
+    nk_vc_printf("1st time passed comparision of r in aspace1!\n");
+
+
+    if (nk_aspace_move_thread(mas2)) {
+	nk_vc_printf("failed to move shell thread to new address space\n");
+	goto vc_setup;
+    }
+
+    if (memcmp((void*) r.va_start , (void*) r.va_start, 0x400)) {
+	    nk_vc_printf("Weird, r and r  differ...\n");
+        goto vc_setup;
+    }
+    nk_vc_printf("1st time passed comparision of r in aspace2!\n");
+
+
+
+
+
+    //2nd time
+    if (nk_aspace_move_thread(mas1)) {
+	nk_vc_printf("failed to move shell thread to new address space\n");
+	goto vc_setup;
+    }
+
+    if (memcmp((void*) r.va_start , (void*) r.va_start, 0x400)) {
+	    nk_vc_printf("Weird, r and r  differ...\n");
+        goto vc_setup;
+    }
+    nk_vc_printf("2nd time passed comparision of r in aspace1!\n");
+
+
+    if (nk_aspace_move_thread(mas2)) {
+	nk_vc_printf("failed to move shell thread to new address space\n");
+	goto vc_setup;
+    }
+
+    if (memcmp((void*) r.va_start , (void*) r.va_start, 0x400)) {
+	    nk_vc_printf("Weird, r and r  differ...\n");
+        goto vc_setup;
+    }
+    nk_vc_printf("2nd time passed comparision of r in aspace2!\n");
+
+
+
+
+    //3rd time 
+
+    if (nk_aspace_move_thread(mas1)) {
+	nk_vc_printf("failed to move shell thread to new address space\n");
+	goto vc_setup;
+    }
+    
+
+    if (memcmp((void*) r.va_start , (void*) r.va_start, 0x400)) {
+	    nk_vc_printf("Weird, r and r  differ...\n");
+        goto vc_setup;
+    }
+    nk_vc_printf("3rd time passed comparision of r in aspace1!\n");
+
+
+    if (nk_aspace_move_thread(mas2)) {
+	nk_vc_printf("failed to move shell thread to new address space\n");
+	goto vc_setup;
+    }
+
+    if (memcmp((void*) r.va_start , (void*) r.va_start, 0x400)) {
+	    nk_vc_printf("Weird, r and r  differ...\n");
+        goto vc_setup;
+    }
+    nk_vc_printf("3rd time passed comparision of r in aspace2!\n");
+
+
+
+
+
+    
+
+
+
+    /*
+
+
+
+        memcmp
+
+        TLB{
+            
+        }
+
+        aspace 2 {
+
+            cr3: 0x00020
+        }
+
+
+        aspace1{
+            cr3: 0x00200
+        }
+
+
+        create paging_aspace_1, drill 0 - 4GB
+        create paging_aspace_2, drill 0 - 4GB
+        switch to paging_aspace_1, memcmp(1KB, 1KB, len= 1KB); 
+            TLB: PCID | VPN | PPN
+                 1       1KB    1KB
+        switch to paging_aspace_2, memcmp(2KB, 2KB, len =1KB);
+
+        switch to paging_aspace_1, memcmp(1KB, 1KB, len= 1KB);
+        switch to paging_aspace_2, memcmp(2KB, 2KB, len =1KB);
+
+        switch to paging_aspace_1, memcmp(1KB, 1KB, len= 1KB);
+        switch to paging_aspace_2, memcmp(2KB, 2KB, len =1KB);
+        
+    */
+
     uint64_t reading = nk_pmc_read(event);
     nk_vc_printf("The pmc reading is : %lu\n", reading);
 
     nk_pmc_stop(event);
     nk_pmc_destroy(event);
 
-    nk_vc_printf("The performance counter at the start was : %lu\n",v1);
-    nk_vc_printf("The performance counter now after allocation fsshed is : %lu\n",v2);
-    nk_vc_printf("The RDTSC performance counter result is %lu\n", v2-v1);
+    // nk_vc_printf("The performance counter at the start was : %lu\n",v1);
+    // nk_vc_printf("The performance counter now after allocation fsshed is : %lu\n",v2);
+    // nk_vc_printf("The RDTSC performance counter result is %lu\n", v2-v1);
 
     nk_vc_printf("survived writing to region with new added writing access after deletion\n");
 
