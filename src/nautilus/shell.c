@@ -1099,8 +1099,7 @@ shell (void * in, void ** out)
     }
 
 
-    perf_event_t * event = nk_pmc_create(INTEL_DTLB_LOAD_MISS_WALK);
-    nk_pmc_start(event);
+    
 
 
     nk_aspace_t *mas1 = nk_aspace_create("paging",op->name,&c);
@@ -1125,88 +1124,105 @@ shell (void * in, void ** out)
     }
 
 
-
-
-    //1st time
     if (nk_aspace_move_thread(mas1)) {
 	nk_vc_printf("failed to move shell thread to new address space\n");
 	goto vc_setup;
     }
 
-    if (memcmp((void*) r.va_start , (void*) r.va_start, 0x400)) {
-	    nk_vc_printf("Weird, r and r  differ...\n");
-        goto vc_setup;
-    }
-    nk_vc_printf("1st time passed comparision of r in aspace1!\n");
 
-
-    if (nk_aspace_move_thread(mas2)) {
-	nk_vc_printf("failed to move shell thread to new address space\n");
-	goto vc_setup;
-    }
-
-    if (memcmp((void*) r.va_start , (void*) r.va_start, 0x400)) {
-	    nk_vc_printf("Weird, r and r  differ...\n");
-        goto vc_setup;
-    }
-    nk_vc_printf("1st time passed comparision of r in aspace2!\n");
+    uint64_t DTLB_NUM_ENTRY = 64;
+    uint64_t REPEATING_TIMES = 100;
 
 
 
-
-
-    //2nd time
-    if (nk_aspace_move_thread(mas1)) {
-	nk_vc_printf("failed to move shell thread to new address space\n");
-	goto vc_setup;
-    }
-
-    if (memcmp((void*) r.va_start , (void*) r.va_start, 0x400)) {
-	    nk_vc_printf("Weird, r and r  differ...\n");
-        goto vc_setup;
-    }
-    nk_vc_printf("2nd time passed comparision of r in aspace1!\n");
-
-
-    if (nk_aspace_move_thread(mas2)) {
-	nk_vc_printf("failed to move shell thread to new address space\n");
-	goto vc_setup;
-    }
-
-    if (memcmp((void*) r.va_start , (void*) r.va_start, 0x400)) {
-	    nk_vc_printf("Weird, r and r  differ...\n");
-        goto vc_setup;
-    }
-    nk_vc_printf("2nd time passed comparision of r in aspace2!\n");
-
-
-
-
-    //3rd time 
-
-    if (nk_aspace_move_thread(mas1)) {
-	nk_vc_printf("failed to move shell thread to new address space\n");
-	goto vc_setup;
+    perf_event_t * event = nk_pmc_create(INTEL_DTLB_LOAD_MISS_WALK);
+    nk_pmc_start(event);
+    
+    for(int i = 0 ; i < REPEATING_TIMES; i++){
+        if (memcmp((void*) r.va_start , (void*) r.va_start, PAGE_SIZE_4KB * (DTLB_NUM_ENTRY+1))) {
+            nk_vc_printf("Weird, r and r  differ...\n");
+            goto vc_setup;
+        }
+        nk_vc_printf("%d time passed comparision of r in aspace1!\n",i);
     }
     
 
-    if (memcmp((void*) r.va_start , (void*) r.va_start, 0x400)) {
-	    nk_vc_printf("Weird, r and r  differ...\n");
-        goto vc_setup;
-    }
-    nk_vc_printf("3rd time passed comparision of r in aspace1!\n");
+    
+
+    // //1st time
+    
+
+    
+    // nk_vc_printf("1st time passed comparision of r in aspace1!\n");
 
 
-    if (nk_aspace_move_thread(mas2)) {
-	nk_vc_printf("failed to move shell thread to new address space\n");
-	goto vc_setup;
-    }
+    // if (nk_aspace_move_thread(mas2)) {
+	// nk_vc_printf("failed to move shell thread to new address space\n");
+	// goto vc_setup;
+    // }
 
-    if (memcmp((void*) r.va_start , (void*) r.va_start, 0x400)) {
-	    nk_vc_printf("Weird, r and r  differ...\n");
-        goto vc_setup;
-    }
-    nk_vc_printf("3rd time passed comparision of r in aspace2!\n");
+    // if (memcmp((void*) r.va_start , (void*) r.va_start, 0x400)) {
+	//     nk_vc_printf("Weird, r and r  differ...\n");
+    //     goto vc_setup;
+    // }
+    // nk_vc_printf("1st time passed comparision of r in aspace2!\n");
+
+
+
+
+
+    // //2nd time
+    // if (nk_aspace_move_thread(mas1)) {
+	// nk_vc_printf("failed to move shell thread to new address space\n");
+	// goto vc_setup;
+    // }
+
+    // if (memcmp((void*) r.va_start , (void*) r.va_start, 0x400)) {
+	//     nk_vc_printf("Weird, r and r  differ...\n");
+    //     goto vc_setup;
+    // }
+    // nk_vc_printf("2nd time passed comparision of r in aspace1!\n");
+
+
+    // if (nk_aspace_move_thread(mas2)) {
+	// nk_vc_printf("failed to move shell thread to new address space\n");
+	// goto vc_setup;
+    // }
+
+    // if (memcmp((void*) r.va_start , (void*) r.va_start, 0x400)) {
+	//     nk_vc_printf("Weird, r and r  differ...\n");
+    //     goto vc_setup;
+    // }
+    // nk_vc_printf("2nd time passed comparision of r in aspace2!\n");
+
+
+
+
+    // //3rd time 
+
+    // if (nk_aspace_move_thread(mas1)) {
+	// nk_vc_printf("failed to move shell thread to new address space\n");
+	// goto vc_setup;
+    // }
+    
+
+    // if (memcmp((void*) r.va_start , (void*) r.va_start, 0x400)) {
+	//     nk_vc_printf("Weird, r and r  differ...\n");
+    //     goto vc_setup;
+    // }
+    // nk_vc_printf("3rd time passed comparision of r in aspace1!\n");
+
+
+    // if (nk_aspace_move_thread(mas2)) {
+	// nk_vc_printf("failed to move shell thread to new address space\n");
+	// goto vc_setup;
+    // }
+
+    // if (memcmp((void*) r.va_start , (void*) r.va_start, 0x400)) {
+	//     nk_vc_printf("Weird, r and r  differ...\n");
+    //     goto vc_setup;
+    // }
+    // nk_vc_printf("3rd time passed comparision of r in aspace2!\n");
 
 
 
