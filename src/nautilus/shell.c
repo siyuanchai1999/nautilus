@@ -1130,21 +1130,52 @@ shell (void * in, void ** out)
     }
 
 
-    uint64_t DTLB_NUM_ENTRY = 64;
+    uint64_t DTLB_NUM_ENTRY = 32;
     uint64_t REPEATING_TIMES = 100;
 
+    volatile int s;
 
+    perf_event_t * event1 = nk_pmc_create(INTEL_DTLB_LOAD_MISS_WALK);
+    nk_pmc_start(event1);
+    uint64_t start = nk_pmc_read(event1);
 
-    perf_event_t * event = nk_pmc_create(INTEL_DTLB_LOAD_MISS_WALK);
-    nk_pmc_start(event);
-    
     for(int i = 0 ; i < REPEATING_TIMES; i++){
-        if (memcmp((void*) r.va_start , (void*) r.va_start, PAGE_SIZE_4KB * (DTLB_NUM_ENTRY+1))) {
-            nk_vc_printf("Weird, r and r  differ...\n");
-            goto vc_setup;
+        // if (memcmp((void*) r.va_start , (void*) r.va_start, PAGE_SIZE_4KB * DTLB_NUM_ENTRY)) {
+        //     nk_vc_printf("Weird, r and r  differ...\n");
+        //     goto vc_setup;
+        // }
+
+        for(int j = 0; j<PAGE_SIZE_4KB * DTLB_NUM_ENTRY; j+= PAGE_SIZE_4KB){
+            // s +=  * (((char*) r.va_start) + j);
+            asm ("mov (%0) , %%rax": : "r" (((char*) r.va_start) + j) : "%rax" );
         }
-        nk_vc_printf("%d time passed comparision of r in aspace1!\n",i);
+
+
+        // nk_vc_printf("%d time passed comparision of r in aspace1!\n",i);
     }
+
+    uint64_t end = nk_pmc_read(event1);
+
+    nk_vc_printf("The pmc1 reading is : %lu\n", end-start);
+    
+
+    start = nk_pmc_read(event1);
+
+    for(int i = 0 ; i < REPEATING_TIMES; i++){
+         for(int j = 0; j<PAGE_SIZE_4KB * (DTLB_NUM_ENTRY+1); j+= PAGE_SIZE_4KB){
+            // s +=  * (((char*) r.va_start) + j);
+            asm ("mov (%0) , %%rax": : "r" (((char*) r.va_start) + j) : "%rax" );
+        }
+
+
+        // nk_vc_printf("%d time passed comparision of r in aspace1!\n",i);
+    }
+
+    end = nk_pmc_read(event1);
+
+    nk_pmc_stop(event1);
+    nk_vc_printf("The pmc2 reading is : %lu\n", end-start);
+    nk_pmc_destroy(event1);
     
 
     
@@ -1268,11 +1299,7 @@ shell (void * in, void ** out)
         
     */
 
-    uint64_t reading = nk_pmc_read(event);
-    nk_vc_printf("The pmc reading is : %lu\n", reading);
-
-    nk_pmc_stop(event);
-    nk_pmc_destroy(event);
+    
 
     // nk_vc_printf("The performance counter at the start was : %lu\n",v1);
     // nk_vc_printf("The performance counter now after allocation fsshed is : %lu\n",v2);
