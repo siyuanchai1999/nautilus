@@ -707,6 +707,44 @@ user_typed (char * buf, void * priv, int offset)
 //     return ((uint64_t)hi << 32) | lo;
 // }
 
+void PMC_DLTB_miss(
+    perf_event_t * event1,
+    perf_event_t * event2,
+    nk_aspace_region_t *r, 
+    uint64_t walk_4KB_num_entries, 
+    uint64_t REPEATING_TIMES
+) {
+    nk_pmc_start(event1);
+    nk_pmc_start(event2);
+    
+    uint64_t start1 = nk_pmc_read(event1);
+    uint64_t start2 = nk_pmc_read(event2);
+
+    for(int i = 0 ; i < REPEATING_TIMES; i++){
+
+        for(int j = 0; j<PAGE_SIZE_4KB * walk_4KB_num_entries; j+= PAGE_SIZE_4KB){
+            // s +=  * (((char*) r.va_start) + j);
+            asm ("mov (%0) , %%rax": : "r" (((char*) r->va_start) + j) : "%rax" );
+        }
+    }
+
+    uint64_t end1 = nk_pmc_read(event1);
+    uint64_t end2 = nk_pmc_read(event2);
+    
+    nk_vc_printf("%d reading entries. PMC reading of %s is : %lu\n", walk_4KB_num_entries, event1->name, end1 - start1);
+    nk_vc_printf("%d reading entries. PMC reading of %s is : %lu\n", walk_4KB_num_entries, event2->name, end2 - start2);
+    nk_vc_printf("%d reading entries. PMC reading of %s and %s is : %lu\n\n", 
+        walk_4KB_num_entries,
+        event1->name,
+        event2->name,
+        (end1 - start1) + (end2 - start2)
+    );
+    
+    nk_pmc_stop(event1);
+    nk_pmc_stop(event2);
+    
+    write_cr3(read_cr3());
+}
 
 static void 
 shell (void * in, void ** out)
@@ -1132,10 +1170,47 @@ shell (void * in, void ** out)
 
     uint64_t DTLB_NUM_ENTRY = 32;
     uint64_t REPEATING_TIMES = 100;
+    uint64_t WALK_ENTRIES = DTLB_NUM_ENTRY;
 
-    volatile int s;
+    
+    // broadwell specific: Siyuan laptop. i5-5200U
+    perf_event_t * DLTB_miss_walk = nk_pmc_create(INTEL_BROADWELL_DTLB_LOAD_MISS_WALK);
+    nk_vc_printf("survived create event %d\n", INTEL_BROADWELL_DTLB_LOAD_MISS_WALK);
 
-    perf_event_t * event1 = nk_pmc_create(INTEL_DTLB_LOAD_MISS_WALK);
+    perf_event_t * DLTB_miss_STLB = nk_pmc_create(INTEL_BROADWELL_DTLB_LOAD_MISS_STLB_HIT);
+    nk_vc_printf("survived create event %d\n", INTEL_BROADWELL_DTLB_LOAD_MISS_STLB_HIT);
+    
+
+    // Skylake specific: Siyuan Game Desktop
+    // perf_event_t * DLTB_miss_walk = nk_pmc_create(INTEL_SKYLAKE_DTLB_LOAD_MISS_WALK);
+    // nk_vc_printf("survived create event %d\n", INTEL_SKYLAKE_DTLB_LOAD_MISS_WALK);
+
+    // perf_event_t * DLTB_miss_STLB = nk_pmc_create(INTEL_SKYLAKE_DTLB_LOAD_MISS_STLB_HIT);
+    // nk_vc_printf("survived create event %d\n", INTEL_SKYLAKE_DTLB_LOAD_MISS_STLB_HIT);
+
+    /*
+    // Haswell specific: Zhen laptop
+    perf_event_t * DLTB_miss_walk = nk_pmc_create(INTEL_HASWELL_DTLB_LOAD_MISS_WALK);
+    nk_vc_printf("survived create event %d\n", INTEL_HASWELL_DTLB_LOAD_MISS_WALK);
+
+    perf_event_t * DLTB_miss_STLB = nk_pmc_create(INTEL_HASWELL_DTLB_LOAD_MISS_STLB_HIT);
+    nk_vc_printf("survived create event %d\n", INTEL_HASWELL_DTLB_LOAD_MISS_STLB_HIT);
+    */
+    PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY , REPEATING_TIMES);
+
+    PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY , REPEATING_TIMES);
+
+    PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY + 1 , REPEATING_TIMES);
+
+    PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY , REPEATING_TIMES);
+    
+    PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY + 1 , REPEATING_TIMES);
+
+    PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY , REPEATING_TIMES);
+    
+    PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY + 1 , REPEATING_TIMES);
+
+    /*
     nk_pmc_start(event1);
     uint64_t start = nk_pmc_read(event1);
 
@@ -1145,7 +1220,7 @@ shell (void * in, void ** out)
         //     goto vc_setup;
         // }
 
-        for(int j = 0; j<PAGE_SIZE_4KB * DTLB_NUM_ENTRY; j+= PAGE_SIZE_4KB){
+        for(int j = 0; j<PAGE_SIZE_4KB * WALK_ENTRIES; j+= PAGE_SIZE_4KB){
             // s +=  * (((char*) r.va_start) + j);
             asm ("mov (%0) , %%rax": : "r" (((char*) r.va_start) + j) : "%rax" );
         }
@@ -1156,13 +1231,13 @@ shell (void * in, void ** out)
 
     uint64_t end = nk_pmc_read(event1);
 
-    nk_vc_printf("The pmc1 reading is : %lu\n", end-start);
+    nk_vc_printf("%d reading entries: the pmc reading is : %lu\n", DTLB_NUM_ENTRY, end-start);
     
-
+    WALK_ENTRIES = DTLB_NUM_ENTRY + 1;
     start = nk_pmc_read(event1);
 
     for(int i = 0 ; i < REPEATING_TIMES; i++){
-         for(int j = 0; j<PAGE_SIZE_4KB * (DTLB_NUM_ENTRY+1); j+= PAGE_SIZE_4KB){
+         for(int j = 0; j<PAGE_SIZE_4KB * WALK_ENTRIES; j+= PAGE_SIZE_4KB){
             // s +=  * (((char*) r.va_start) + j);
             asm ("mov (%0) , %%rax": : "r" (((char*) r.va_start) + j) : "%rax" );
         }
@@ -1174,9 +1249,11 @@ shell (void * in, void ** out)
     end = nk_pmc_read(event1);
 
     nk_pmc_stop(event1);
-    nk_vc_printf("The pmc2 reading is : %lu\n", end-start);
-    nk_pmc_destroy(event1);
+    nk_vc_printf("%d reading entries: the pmc reading is : %lu\n", WALK_ENTRIES, end-start);
+    */
     
+    nk_pmc_destroy(DLTB_miss_walk);
+    nk_pmc_destroy(DLTB_miss_STLB);
 
     
 
