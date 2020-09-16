@@ -707,16 +707,17 @@ user_typed (char * buf, void * priv, int offset)
 //     return ((uint64_t)hi << 32) | lo;
 // }
 
+
 void PMC_DLTB_miss(
     perf_event_t * event1,
     perf_event_t * event2,
-    nk_aspace_region_t *r, 
-    uint64_t walk_4KB_num_entries, 
+    nk_aspace_region_t *r,
+    uint64_t walk_4KB_num_entries,
     uint64_t REPEATING_TIMES
 ) {
     nk_pmc_start(event1);
     nk_pmc_start(event2);
-    
+
     uint64_t start1 = nk_pmc_read(event1);
     uint64_t start2 = nk_pmc_read(event2);
 
@@ -730,21 +731,22 @@ void PMC_DLTB_miss(
 
     uint64_t end1 = nk_pmc_read(event1);
     uint64_t end2 = nk_pmc_read(event2);
-    
+
     nk_vc_printf("%d reading entries. PMC reading of %s is : %lu\n", walk_4KB_num_entries, event1->name, end1 - start1);
     nk_vc_printf("%d reading entries. PMC reading of %s is : %lu\n", walk_4KB_num_entries, event2->name, end2 - start2);
-    nk_vc_printf("%d reading entries. PMC reading of %s and %s is : %lu\n\n", 
+    nk_vc_printf("%d reading entries. PMC reading of %s and %s is : %lu\n\n",
         walk_4KB_num_entries,
         event1->name,
         event2->name,
         (end1 - start1) + (end2 - start2)
     );
-    
+
     nk_pmc_stop(event1);
     nk_pmc_stop(event2);
-    
+
     write_cr3(read_cr3());
 }
+
 
 static void 
 shell (void * in, void ** out)
@@ -773,6 +775,7 @@ shell (void * in, void ** out)
     }
 // ENABLE THIS CODE TO START TO TEST YOUR PAGING IMPLEMENTATION
 #ifdef NAUT_CONFIG_ASPACES
+
     // set CR4.PCIDE (PCID enabled)
     // write_cr4(read_cr4() | (1 << 17));
     // nk_vc_printf("cr4=%lx\n", read_cr4());
@@ -959,7 +962,7 @@ shell (void * in, void ** out)
     //     goto vc_setup;
     // }
 
-
+#if 0
     // // test case for move region
     nk_aspace_region_t r3, r4, r5;
     r3.va_start = (void*) 0x200000000UL;
@@ -1135,13 +1138,15 @@ shell (void * in, void ** out)
         );
         goto vc_setup;
     }
-
-
+#endif
+#if 0
     
-
+    nk_vc_printf("passed remove r6 and reg!\n");
 
     nk_aspace_t *mas1 = nk_aspace_create("paging",op->name,&c);
+    nk_vc_printf("passed mas1 create!\n");
     nk_aspace_t *mas2 = nk_aspace_create("paging",op->name,&c);
+    nk_vc_printf("passed mas2 create!\n");
 
     if (nk_aspace_add_region(mas1, &r)) {
         nk_vc_printf("failed to add eager region r in aspace1"
@@ -1172,90 +1177,51 @@ shell (void * in, void ** out)
     uint64_t REPEATING_TIMES = 100;
     uint64_t WALK_ENTRIES = DTLB_NUM_ENTRY;
 
-    
+
     // broadwell specific: Siyuan laptop. i5-5200U
-    perf_event_t * DLTB_miss_walk = nk_pmc_create(INTEL_BROADWELL_DTLB_LOAD_MISS_WALK);
-    nk_vc_printf("survived create event %d\n", INTEL_BROADWELL_DTLB_LOAD_MISS_WALK);
+    //perf_event_t * DLTB_miss_walk = nk_pmc_create(INTEL_BROADWELL_DTLB_LOAD_MISS_WALK);
+    //nk_vc_printf("survived create event %d\n", INTEL_BROADWELL_DTLB_LOAD_MISS_WALK);
 
-    perf_event_t * DLTB_miss_STLB = nk_pmc_create(INTEL_BROADWELL_DTLB_LOAD_MISS_STLB_HIT);
-    nk_vc_printf("survived create event %d\n", INTEL_BROADWELL_DTLB_LOAD_MISS_STLB_HIT);
-    
+    //perf_event_t * DLTB_miss_STLB = nk_pmc_create(INTEL_BROADWELL_DTLB_LOAD_MISS_STLB_HIT);
+    //nk_vc_printf("survived create event %d\n", INTEL_BROADWELL_DTLB_LOAD_MISS_STLB_HIT);
 
-    // Skylake specific: Siyuan Game Desktop
+
+    // // Skylake specific: Siyuan Game Desktop
     // perf_event_t * DLTB_miss_walk = nk_pmc_create(INTEL_SKYLAKE_DTLB_LOAD_MISS_WALK);
     // nk_vc_printf("survived create event %d\n", INTEL_SKYLAKE_DTLB_LOAD_MISS_WALK);
 
     // perf_event_t * DLTB_miss_STLB = nk_pmc_create(INTEL_SKYLAKE_DTLB_LOAD_MISS_STLB_HIT);
     // nk_vc_printf("survived create event %d\n", INTEL_SKYLAKE_DTLB_LOAD_MISS_STLB_HIT);
 
-    /*
+    
     // Haswell specific: Zhen laptop
     perf_event_t * DLTB_miss_walk = nk_pmc_create(INTEL_HASWELL_DTLB_LOAD_MISS_WALK);
     nk_vc_printf("survived create event %d\n", INTEL_HASWELL_DTLB_LOAD_MISS_WALK);
 
     perf_event_t * DLTB_miss_STLB = nk_pmc_create(INTEL_HASWELL_DTLB_LOAD_MISS_STLB_HIT);
     nk_vc_printf("survived create event %d\n", INTEL_HASWELL_DTLB_LOAD_MISS_STLB_HIT);
-    */
-    PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY , REPEATING_TIMES);
+    
+
+
+   PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY , REPEATING_TIMES);
 
     PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY , REPEATING_TIMES);
 
     PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY + 1 , REPEATING_TIMES);
 
     PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY , REPEATING_TIMES);
-    
+
     PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY + 1 , REPEATING_TIMES);
 
     PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY , REPEATING_TIMES);
-    
+
     PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY + 1 , REPEATING_TIMES);
 
-    /*
-    nk_pmc_start(event1);
-    uint64_t start = nk_pmc_read(event1);
-
-    for(int i = 0 ; i < REPEATING_TIMES; i++){
-        // if (memcmp((void*) r.va_start , (void*) r.va_start, PAGE_SIZE_4KB * DTLB_NUM_ENTRY)) {
-        //     nk_vc_printf("Weird, r and r  differ...\n");
-        //     goto vc_setup;
-        // }
-
-        for(int j = 0; j<PAGE_SIZE_4KB * WALK_ENTRIES; j+= PAGE_SIZE_4KB){
-            // s +=  * (((char*) r.va_start) + j);
-            asm ("mov (%0) , %%rax": : "r" (((char*) r.va_start) + j) : "%rax" );
-        }
-
-
-        // nk_vc_printf("%d time passed comparision of r in aspace1!\n",i);
-    }
-
-    uint64_t end = nk_pmc_read(event1);
-
-    nk_vc_printf("%d reading entries: the pmc reading is : %lu\n", DTLB_NUM_ENTRY, end-start);
-    
-    WALK_ENTRIES = DTLB_NUM_ENTRY + 1;
-    start = nk_pmc_read(event1);
-
-    for(int i = 0 ; i < REPEATING_TIMES; i++){
-         for(int j = 0; j<PAGE_SIZE_4KB * WALK_ENTRIES; j+= PAGE_SIZE_4KB){
-            // s +=  * (((char*) r.va_start) + j);
-            asm ("mov (%0) , %%rax": : "r" (((char*) r.va_start) + j) : "%rax" );
-        }
-
-
-        // nk_vc_printf("%d time passed comparision of r in aspace1!\n",i);
-    }
-
-    end = nk_pmc_read(event1);
-
-    nk_pmc_stop(event1);
-    nk_vc_printf("%d reading entries: the pmc reading is : %lu\n", WALK_ENTRIES, end-start);
-    */
-    
     nk_pmc_destroy(DLTB_miss_walk);
     nk_pmc_destroy(DLTB_miss_STLB);
 
     
+
 
     // //1st time
     
@@ -1383,8 +1349,10 @@ shell (void * in, void ** out)
     // nk_vc_printf("The RDTSC performance counter result is %lu\n", v2-v1);
 
     nk_vc_printf("survived writing to region with new added writing access after deletion\n");
+#endif
 
 #endif
+
     
  vc_setup:
     if (nk_bind_vc(get_cur_thread(), vc)) { 
