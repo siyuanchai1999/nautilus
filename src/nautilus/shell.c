@@ -962,7 +962,7 @@ shell (void * in, void ** out)
     //     goto vc_setup;
     // }
 
-#if 0
+
     // // test case for move region
     nk_aspace_region_t r3, r4, r5;
     r3.va_start = (void*) 0x200000000UL;
@@ -983,6 +983,7 @@ shell (void * in, void ** out)
         goto vc_setup;
     }
 
+    
 
     r4.va_start = (void*) 0x300000000UL;
     r4.pa_start = (void*) 0x200000000UL;
@@ -1027,6 +1028,10 @@ shell (void * in, void ** out)
     }
 
     
+
+
+
+
     // test case for remove region
     // if (memcmp((void*) r4.va_start , (void*) r4.va_start, 0x10000)) {
 	//     nk_vc_printf("Reference r4 at %16lx FAIL\n", r4.va_start);
@@ -1055,18 +1060,18 @@ shell (void * in, void ** out)
     // }
     
 
-    
+#if 0     
     // // test case for protection region
     
     // 0xffff800000000000UL
 
     nk_aspace_region_t reg;
-    reg.va_start = (void*) 0x1000000000UL; // 2^6 GB
+    reg.va_start = (void*) 0x800000000UL; // 2^6 GB
     reg.pa_start = reg.va_start;
     reg.len_bytes = 0x600000UL;  // 2^6 KB
     reg.protect.flags = NK_ASPACE_READ  | NK_ASPACE_EXEC | NK_ASPACE_PIN | NK_ASPACE_KERN ;
     //  reg.protect.flags =  NK_ASPACE_WRITE | NK_ASPACE_EXEC | NK_ASPACE_PIN | NK_ASPACE_KERN | NK_ASPACE_EAGER;
-    
+
     if (nk_aspace_add_region(mas, &reg)) {
         nk_vc_printf("failed to add eager region reg"
                     "(va=%016lx pa=%016lx len=%lx, prot=%lx)" 
@@ -1077,9 +1082,17 @@ shell (void * in, void ** out)
     }
     
     nk_vc_printf("Survived region adding region reg\n");
-    
+    // int t = 0;
+    // while (1) {
+    //     if (!t){
+    //         nk_vc_printf("stop!\n");
+    //         t++;
+    //     }
+    // }
+
+
     if (nk_aspace_remove_region(mas,&reg)) {
-        nk_vc_printf("Expected: fail to remove eager region reg"
+        nk_vc_printf("Expected: fail to remove pinned region reg"
                     "(va=%016lx pa=%016lx len=%lx, prot=%lx)" 
                     "in address space\n",
                     reg.va_start, reg.pa_start, reg.len_bytes, reg.protect.flags    
@@ -1100,6 +1113,8 @@ shell (void * in, void ** out)
     memcpy((void*)(reg.va_start), (void*)0x0, 0x4000);
     nk_vc_printf("survived writing to region with new added writing access\n");
     
+
+    // test remove again, esepcially for 1GB and 2MB
     nk_aspace_region_t r6;
     r6.va_start = reg.va_start + reg.len_bytes;
     r6.pa_start = reg.va_start;
@@ -1139,7 +1154,6 @@ shell (void * in, void ** out)
         goto vc_setup;
     }
 #endif
-#if 0
     
     nk_vc_printf("passed remove r6 and reg!\n");
 
@@ -1173,7 +1187,7 @@ shell (void * in, void ** out)
     }
 
 
-    uint64_t DTLB_NUM_ENTRY = 32;
+    uint64_t DTLB_NUM_ENTRY = 64;
     uint64_t REPEATING_TIMES = 100;
     uint64_t WALK_ENTRIES = DTLB_NUM_ENTRY;
 
@@ -1203,7 +1217,7 @@ shell (void * in, void ** out)
     
 
 
-   PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY , REPEATING_TIMES);
+    PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY , REPEATING_TIMES);
 
     PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY , REPEATING_TIMES);
 
@@ -1349,7 +1363,7 @@ shell (void * in, void ** out)
     // nk_vc_printf("The RDTSC performance counter result is %lu\n", v2-v1);
 
     nk_vc_printf("survived writing to region with new added writing access after deletion\n");
-#endif
+
 
 #endif
 
