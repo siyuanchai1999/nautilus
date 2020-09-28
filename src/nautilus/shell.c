@@ -708,6 +708,35 @@ user_typed (char * buf, void * priv, int offset)
 // }
 
 
+void PMC_DLTB_miss_single(
+    perf_event_t * event1,
+    nk_aspace_region_t *r,
+    uint64_t walk_4KB_num_entries,
+    uint64_t REPEATING_TIMES
+) {
+    nk_pmc_start(event1);
+
+    uint64_t start1 = nk_pmc_read(event1);
+
+    for(int i = 0 ; i < REPEATING_TIMES; i++){
+
+        for(int j = 0; j<PAGE_SIZE_4KB * walk_4KB_num_entries; j+= PAGE_SIZE_4KB){
+            // s +=  * (((char*) r.va_start) + j);
+            asm ("mov (%0) , %%rax": : "r" (((char*) r->va_start) + j) : "%rax" );
+        }
+    }
+
+    uint64_t end1 = nk_pmc_read(event1);
+
+    nk_vc_printf("%d reading entries. PMC reading of %s is : %lu\n", walk_4KB_num_entries, event1->name, end1 - start1);
+    
+
+    nk_pmc_stop(event1);
+
+    write_cr3(read_cr3());
+}
+
+
 void PMC_DLTB_miss(
     perf_event_t * event1,
     perf_event_t * event2,
@@ -1060,13 +1089,13 @@ shell (void * in, void ** out)
     // }
     
 
-#if 0     
+     
     // // test case for protection region
     
     // 0xffff800000000000UL
-
+#if 0
     nk_aspace_region_t reg;
-    reg.va_start = (void*) 0x800000000UL; // 2^6 GB
+    reg.va_start = (void*) 0x400000000UL; // 2^6 GB
     reg.pa_start = reg.va_start;
     reg.len_bytes = 0x600000UL;  // 2^6 KB
     reg.protect.flags = NK_ASPACE_READ  | NK_ASPACE_EXEC | NK_ASPACE_PIN | NK_ASPACE_KERN ;
@@ -1090,7 +1119,7 @@ shell (void * in, void ** out)
     //     }
     // }
 
-
+   
     if (nk_aspace_remove_region(mas,&reg)) {
         nk_vc_printf("Expected: fail to remove pinned region reg"
                     "(va=%016lx pa=%016lx len=%lx, prot=%lx)" 
@@ -1109,7 +1138,7 @@ shell (void * in, void ** out)
     // nk_aspace_protect(mas, &reg, &prot);
     nk_aspace_protect_region(mas, &reg, &prot);
     reg.protect = prot;
-    
+
     memcpy((void*)(reg.va_start), (void*)0x0, 0x4000);
     nk_vc_printf("survived writing to region with new added writing access\n");
     
@@ -1157,6 +1186,7 @@ shell (void * in, void ** out)
     
     nk_vc_printf("passed remove r6 and reg!\n");
 
+
     nk_aspace_t *mas1 = nk_aspace_create("paging",op->name,&c);
     nk_vc_printf("passed mas1 create!\n");
     nk_aspace_t *mas2 = nk_aspace_create("paging",op->name,&c);
@@ -1187,7 +1217,7 @@ shell (void * in, void ** out)
     }
 
 
-    uint64_t DTLB_NUM_ENTRY = 64;
+    uint64_t DTLB_NUM_ENTRY = 4672;
     uint64_t REPEATING_TIMES = 100;
     uint64_t WALK_ENTRIES = DTLB_NUM_ENTRY;
 
@@ -1209,33 +1239,53 @@ shell (void * in, void ** out)
 
     
     // Haswell specific: Zhen laptop
-    perf_event_t * DLTB_miss_walk = nk_pmc_create(INTEL_HASWELL_DTLB_LOAD_MISS_WALK);
-    nk_vc_printf("survived create event %d\n", INTEL_HASWELL_DTLB_LOAD_MISS_WALK);
+    // perf_event_t * DLTB_miss_walk = nk_pmc_create(INTEL_BROADWELL_DTLB_LOAD_MISS_WALK);
+    // nk_vc_printf("survived create event %d\n", INTEL_BROADWELL_DTLB_LOAD_MISS_WALK);
 
-    perf_event_t * DLTB_miss_STLB = nk_pmc_create(INTEL_HASWELL_DTLB_LOAD_MISS_STLB_HIT);
-    nk_vc_printf("survived create event %d\n", INTEL_HASWELL_DTLB_LOAD_MISS_STLB_HIT);
+    // perf_event_t * DLTB_miss_STLB = nk_pmc_create(INTEL_BROADWELL_DTLB_LOAD_MISS_STLB_HIT);
+    // nk_vc_printf("survived create event %d\n", INTEL_BROADWELL_DTLB_LOAD_MISS_STLB_HIT);
     
-
-
-    PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY , REPEATING_TIMES);
-
-    PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY , REPEATING_TIMES);
-
-    PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY + 1 , REPEATING_TIMES);
-
-    PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY , REPEATING_TIMES);
-
-    PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY + 1 , REPEATING_TIMES);
-
-    PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY , REPEATING_TIMES);
-
-    PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY + 1 , REPEATING_TIMES);
-
-    nk_pmc_destroy(DLTB_miss_walk);
-    nk_pmc_destroy(DLTB_miss_STLB);
-
     
+    // PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY , REPEATING_TIMES);
 
+    // PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY , REPEATING_TIMES);
+
+    // PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY + 1 , REPEATING_TIMES);
+
+    // PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY , REPEATING_TIMES);
+
+    // PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY + 1 , REPEATING_TIMES);
+
+    // PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY , REPEATING_TIMES);
+
+    // PMC_DLTB_miss(DLTB_miss_walk, DLTB_miss_STLB, &r, DTLB_NUM_ENTRY + 1 , REPEATING_TIMES);
+
+    // nk_pmc_destroy(DLTB_miss_walk);
+    // nk_pmc_destroy(DLTB_miss_STLB);
+
+    // Xeon Phi specific
+    /*
+    Xeon Phi L1 DTLB 4kB 64 entries -> 64 readings
+                    64KB 32 entries -> 64/4 * 32 = 512
+                    2MB 8 entries   -> 2 * 1024/4 * 8 = 4096
+                                    -> total = 4672
+    */
+    perf_event_t * DLTB_miss_walk = nk_pmc_create(XEON_PHI_DTLB_MISS_LOAD);
+    nk_vc_printf("survived create event %d\n", XEON_PHI_DTLB_MISS_LOAD);	    
+
+    PMC_DLTB_miss_single(DLTB_miss_walk, &r, DTLB_NUM_ENTRY , REPEATING_TIMES);
+
+    PMC_DLTB_miss_single(DLTB_miss_walk, &r, DTLB_NUM_ENTRY , REPEATING_TIMES);
+
+    PMC_DLTB_miss_single(DLTB_miss_walk, &r, DTLB_NUM_ENTRY + 1 , REPEATING_TIMES);
+
+    PMC_DLTB_miss_single(DLTB_miss_walk, &r, DTLB_NUM_ENTRY , REPEATING_TIMES);
+
+    PMC_DLTB_miss_single(DLTB_miss_walk, &r, DTLB_NUM_ENTRY + 1 , REPEATING_TIMES);
+
+    PMC_DLTB_miss_single(DLTB_miss_walk, &r, DTLB_NUM_ENTRY , REPEATING_TIMES);
+
+    PMC_DLTB_miss_single(DLTB_miss_walk, &r, DTLB_NUM_ENTRY + 1 , REPEATING_TIMES);
 
     // //1st time
     

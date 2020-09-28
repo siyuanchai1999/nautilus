@@ -128,10 +128,14 @@ static intel_event_attr_t intel_event_attrs[256] =
 	{"LLC Misses",                              0x2e, 0x41, 4},
 	{"Branch Instructions Retired",             0xc4, 0x00, 5},
 	{"Branch Misses Retired",                   0xc5, 0x00, 6},
-    /* begin impl specific */
-    {"DTLB Load Misses -> Walk",                0x08, 0x01, 0},
-    {"Broadwell DTLB Load Misses -> STLB Hit",  0x08, 0x60, 0},
-    {"Skylake DTLB Load Misses -> STLB Hit",    0x08, 0x20, 0},
+   	 /* begin impl specific */
+    	{"Broadwell DTLB Load Misses -> Walk",      0x08, 0x01, 0},
+    	{"Broadwell DTLB Load Misses -> STLB Hit",  0x08, 0x60, 0},
+    	{"Haswell DTLB Load Misses -> Walk",        0x08, 0x01, 0},
+    	{"Haswell DTLB Load Misses -> STLB Hit",    0x08, 0x60, 0},
+    	{"Skylake DTLB Load Misses -> Walk",        0x08, 0x01, 0},
+    	{"Skylake DTLB Load Misses -> STLB Hit",    0x08, 0x20, 0},
+	{"Xeon Phi Mem uops retired DTLB MISS LOAD",0x04, 0x08, 0},
 };
 	
 
