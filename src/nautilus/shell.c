@@ -714,6 +714,7 @@ void PMC_DLTB_miss_single(
     uint64_t walk_4KB_num_entries,
     uint64_t REPEATING_TIMES
 ) {
+    
     nk_pmc_start(event1);
 
     uint64_t start1 = nk_pmc_read(event1);
@@ -804,6 +805,11 @@ shell (void * in, void ** out)
     }
 // ENABLE THIS CODE TO START TO TEST YOUR PAGING IMPLEMENTATION
 #ifdef NAUT_CONFIG_ASPACES
+
+#if 0
+    /**
+     * Paging test
+     * */
 
     // set CR4.PCIDE (PCID enabled)
     // write_cr4(read_cr4() | (1 << 17));
@@ -1093,7 +1099,7 @@ shell (void * in, void ** out)
     // // test case for protection region
     
     // 0xffff800000000000UL
-#if 0
+
     nk_aspace_region_t reg;
     reg.va_start = (void*) 0x400000000UL; // 2^6 GB
     reg.pa_start = reg.va_start;
@@ -1182,10 +1188,16 @@ shell (void * in, void ** out)
         );
         goto vc_setup;
     }
-#endif
+
     
     nk_vc_printf("passed remove r6 and reg!\n");
+    nk_vc_printf("survived writing to region with new added writing access after deletion\n");
+#endif
 
+#if 0
+    /**
+     * Testing PMC, target for PCID
+     * */
 
     nk_aspace_t *mas1 = nk_aspace_create("paging",op->name,&c);
     nk_vc_printf("passed mas1 create!\n");
@@ -1217,7 +1229,7 @@ shell (void * in, void ** out)
     }
 
 
-    uint64_t DTLB_NUM_ENTRY = 4672;
+    uint64_t DTLB_NUM_ENTRY = 160;
     uint64_t REPEATING_TIMES = 100;
     uint64_t WALK_ENTRIES = DTLB_NUM_ENTRY;
 
@@ -1272,7 +1284,7 @@ shell (void * in, void ** out)
     */
     perf_event_t * DLTB_miss_walk = nk_pmc_create(XEON_PHI_DTLB_MISS_LOAD);
     nk_vc_printf("survived create event %d\n", XEON_PHI_DTLB_MISS_LOAD);	    
-
+    // nk_vc_printf("volatile!\n");
     PMC_DLTB_miss_single(DLTB_miss_walk, &r, DTLB_NUM_ENTRY , REPEATING_TIMES);
 
     PMC_DLTB_miss_single(DLTB_miss_walk, &r, DTLB_NUM_ENTRY , REPEATING_TIMES);
@@ -1362,59 +1374,76 @@ shell (void * in, void ** out)
     // }
     // nk_vc_printf("3rd time passed comparision of r in aspace2!\n");
 
-
-
-
-
-    
-
-
-
-    /*
-
-
-
-        memcmp
-
-        TLB{
-            
-        }
-
-        aspace 2 {
-
-            cr3: 0x00020
-        }
-
-
-        aspace1{
-            cr3: 0x00200
-        }
-
-
-        create paging_aspace_1, drill 0 - 4GB
-        create paging_aspace_2, drill 0 - 4GB
-        switch to paging_aspace_1, memcmp(1KB, 1KB, len= 1KB); 
-            TLB: PCID | VPN | PPN
-                 1       1KB    1KB
-        switch to paging_aspace_2, memcmp(2KB, 2KB, len =1KB);
-
-        switch to paging_aspace_1, memcmp(1KB, 1KB, len= 1KB);
-        switch to paging_aspace_2, memcmp(2KB, 2KB, len =1KB);
-
-        switch to paging_aspace_1, memcmp(1KB, 1KB, len= 1KB);
-        switch to paging_aspace_2, memcmp(2KB, 2KB, len =1KB);
-        
-    */
-
-    
-
     // nk_vc_printf("The performance counter at the start was : %lu\n",v1);
     // nk_vc_printf("The performance counter now after allocation fsshed is : %lu\n",v2);
     // nk_vc_printf("The RDTSC performance counter result is %lu\n", v2-v1);
 
-    nk_vc_printf("survived writing to region with new added writing access after deletion\n");
+    
+#endif
 
+    nk_aspace_characteristics_t c;
+    if (nk_aspace_query("carat",&c)) {
+        nk_vc_printf("failed to find carat implementation\n");
+        goto vc_setup;
+    }
 
+    nk_aspace_t *carat_aspace = nk_aspace_create("carat",op->name,&c);
+    
+
+    if (!carat_aspace) {
+        nk_vc_printf("failed to create new address space\n");
+        goto vc_setup;
+    }
+
+    nk_aspace_region_t carat_r0, carat_r1, carat_r2;
+    // create a 1-1 region mapping all of physical memory
+    // so that the kernel can work when that thread is active
+    carat_r0.va_start = 0;
+    carat_r0.pa_start = 0;
+    carat_r0.len_bytes = 0x100000000UL;  // first 4 GB are mapped
+    // set protections for kernel
+    // use EAGER to tell paging implementation that it needs to build all these PTs right now
+    carat_r0.protect.flags = NK_ASPACE_READ | NK_ASPACE_WRITE | NK_ASPACE_EXEC | NK_ASPACE_PIN | NK_ASPACE_KERN | NK_ASPACE_EAGER;
+
+    // now add the region
+    // this should build the page tables immediately
+    if (nk_aspace_add_region(carat_aspace, &carat_r0)) {
+        nk_vc_printf("failed! to add initial eager region to address space\n");
+        goto vc_setup;
+    }
+
+    carat_r1 = carat_r0;
+
+    if (!nk_aspace_add_region(carat_aspace, &carat_r1)) {
+        nk_vc_printf("Failed! check overlap\n");
+        goto vc_setup;
+    }
+
+    carat_r1.va_start = (void *) 0x200000000UL;
+
+    if (!nk_aspace_add_region(carat_aspace, &carat_r1)) {
+        nk_vc_printf("Failed! check CARAT region validness\n");
+        goto vc_setup;
+    }
+
+    carat_r1.pa_start = carat_r1.va_start;
+    if (nk_aspace_add_region(carat_aspace, &carat_r1)) {
+        nk_vc_printf("Failed! to add second initial eager region to address space\n");
+        goto vc_setup;
+    }
+
+    if (!nk_aspace_remove_region(carat_aspace, &carat_r1)) {
+        nk_vc_printf("Failed! Should not remove pinned region\n");
+        goto vc_setup;
+    }
+
+    carat_r2 = carat_r0;
+    carat_r2.va_start = carat_r2.pa_start = (void *) 0x300000000UL;
+    if (nk_aspace_add_region(carat_aspace, &carat_r2)) {
+        nk_vc_printf("failed! to add initial eager region to address space\n");
+        goto vc_setup;
+    }
+    
 #endif
 
     
