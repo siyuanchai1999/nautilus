@@ -1395,7 +1395,7 @@ shell (void * in, void ** out)
         goto vc_setup;
     }
 
-    nk_aspace_region_t carat_r0, carat_r1, carat_r2;
+    nk_aspace_region_t carat_r0, carat_r1, carat_r2, carat_r3, carat_r4;
     // create a 1-1 region mapping all of physical memory
     // so that the kernel can work when that thread is active
     carat_r0.va_start = 0;
@@ -1406,44 +1406,112 @@ shell (void * in, void ** out)
     carat_r0.protect.flags = NK_ASPACE_READ | NK_ASPACE_WRITE | NK_ASPACE_EXEC | NK_ASPACE_PIN | NK_ASPACE_KERN | NK_ASPACE_EAGER;
 
     // now add the region
-    // this should build the page tables immediately
     if (nk_aspace_add_region(carat_aspace, &carat_r0)) {
         nk_vc_printf("failed! to add initial eager region to address space\n");
         goto vc_setup;
     }
 
+    // should not add region successfully due to overlapping
     carat_r1 = carat_r0;
-
     if (!nk_aspace_add_region(carat_aspace, &carat_r1)) {
         nk_vc_printf("Failed! check overlap\n");
         goto vc_setup;
     }
 
+    // should not add region successfully due to VA != PA for CARAT
     carat_r1.va_start = (void *) 0x200000000UL;
-
     if (!nk_aspace_add_region(carat_aspace, &carat_r1)) {
         nk_vc_printf("Failed! check CARAT region validness\n");
         goto vc_setup;
     }
 
+    // should add region successfully
     carat_r1.pa_start = carat_r1.va_start;
     if (nk_aspace_add_region(carat_aspace, &carat_r1)) {
         nk_vc_printf("Failed! to add second initial eager region to address space\n");
         goto vc_setup;
     }
 
+    // should not remove region successfully due to pinnned region
     if (!nk_aspace_remove_region(carat_aspace, &carat_r1)) {
         nk_vc_printf("Failed! Should not remove pinned region\n");
         goto vc_setup;
     }
 
+    // should add region sucessfully
     carat_r2 = carat_r0;
     carat_r2.va_start = carat_r2.pa_start = (void *) 0x300000000UL;
+    carat_r2.protect.flags = NK_ASPACE_PIN | NK_ASPACE_KERN | NK_ASPACE_EAGER;
     if (nk_aspace_add_region(carat_aspace, &carat_r2)) {
         nk_vc_printf("failed! to add initial eager region to address space\n");
         goto vc_setup;
     }
-    
+
+    // should pass protection check
+    if (nk_aspace_protection_check(carat_aspace, &carat_r2)) {
+        nk_vc_printf("failed! protection check\n");
+        goto vc_setup;
+    }
+
+    // should not pass protection check due to partial overlap
+    carat_r3 = carat_r2;
+    carat_r3.va_start = carat_r3.pa_start = carat_r2.va_start + 0x80000000UL;
+    if (!nk_aspace_protection_check(carat_aspace, &carat_r3)) {
+        nk_vc_printf("failed! protection check\n");
+        goto vc_setup;
+    }
+
+    // should not pass protection check due to partial overlap
+    carat_r3.va_start = carat_r3.pa_start = carat_r1.va_start + 0x80000000UL;
+    if (!nk_aspace_protection_check(carat_aspace, &carat_r3)) {
+        nk_vc_printf("failed! protection check\n");
+        goto vc_setup;
+    }
+
+    // should not pass protection check due to no overlapped region
+    carat_r3.va_start = carat_r3.pa_start = carat_r2.va_start + 0x100000000UL;
+    if (!nk_aspace_protection_check(carat_aspace, &carat_r3)) {
+        nk_vc_printf("failed! protection check\n");
+        goto vc_setup;
+    }
+
+    // should pass protection check, subset, permission good
+    carat_r4 = carat_r2;
+    carat_r4.va_start = carat_r4.pa_start = carat_r2.va_start + 0x80000000UL;
+    carat_r4.len_bytes = 0x20000000UL;
+    if (nk_aspace_protection_check(carat_aspace, &carat_r4)) {
+        nk_vc_printf("failed! protection check\n");
+        goto vc_setup;
+    }
+
+    // should not pass protection check due to no read permission
+    carat_r4.protect.flags = NK_ASPACE_READ | NK_ASPACE_PIN | NK_ASPACE_KERN | NK_ASPACE_EAGER;
+    if (!nk_aspace_protection_check(carat_aspace, &carat_r4)) {
+        nk_vc_printf("failed! protection check\n");
+        goto vc_setup;
+    }
+
+    // should not pass protection check due to no write permission
+    carat_r4.protect.flags = NK_ASPACE_WRITE | NK_ASPACE_PIN | NK_ASPACE_KERN | NK_ASPACE_EAGER;
+    if (!nk_aspace_protection_check(carat_aspace, &carat_r4)) {
+        nk_vc_printf("failed! protection check\n");
+        goto vc_setup;
+    }
+
+    // should not pass protection check due to no exec permission
+    carat_r4.protect.flags = NK_ASPACE_EXEC | NK_ASPACE_PIN | NK_ASPACE_KERN | NK_ASPACE_EAGER;
+    if (!nk_aspace_protection_check(carat_aspace, &carat_r4)) {
+        nk_vc_printf("failed! protection check\n");
+        goto vc_setup;
+    }
+
+    // should not pass protection check due to user access
+    carat_r4.protect.flags = NK_ASPACE_PIN | NK_ASPACE_EAGER;
+    if (!nk_aspace_protection_check(carat_aspace, &carat_r4)) {
+        nk_vc_printf("failed! protection check\n");
+        goto vc_setup;
+    }
+
 #endif
 
     

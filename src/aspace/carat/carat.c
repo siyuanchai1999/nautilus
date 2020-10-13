@@ -54,6 +54,15 @@
 #define ASPACE_NAME(a) ((a)?(a)->aspace->name : "default")
 #define THREAD_NAME(t) ((!(t)) ? "(none)" : (t)->is_idle ? "(idle)" : (t)->name[0] ? (t)->name : "(noname)")
 
+// ok if r1.permision <= r2.permission
+#define PERMISSION_LEQ(r1, r2) \
+    (\
+        NK_ASPACE_GET_READ(r1->protect.flags)  <= NK_ASPACE_GET_READ(r2->protect.flags) \
+    &&  NK_ASPACE_GET_WRITE(r1->protect.flags) <= NK_ASPACE_GET_WRITE(r2->protect.flags) \
+    &&  NK_ASPACE_GET_EXEC(r1->protect.flags)  <= NK_ASPACE_GET_EXEC(r2->protect.flags) \
+    &&  NK_ASPACE_GET_KERN(r1->protect.flags)  >= NK_ASPACE_GET_KERN(r2->protect.flags) \
+    )
+
 typedef struct nk_aspace_carat {
     // pointer to the abstract aspace that the
     // rest of the kernel uses when dealing with this
@@ -71,10 +80,7 @@ typedef struct nk_aspace_carat {
 
 } nk_aspace_carat_t;
 
-int nk_carat_protection_check_current_aspace(void *addr, uint64_t size, int requested_protections){
-    
-    return 0;
-}
+
 
 
 /**
@@ -90,6 +96,7 @@ static int destroy(void *state) {
     ASPACE_LOCK_CONF;
     ASPACE_LOCK(carat);
 
+
     ASPACE_UNLOCK(carat);
     return 0;
 }
@@ -100,6 +107,7 @@ static int add_thread(void *state)
     struct nk_thread *t = get_cur_thread();
     
     DEBUG("adding thread %d (%s) to address space %s\n", t->tid,THREAD_NAME(t), ASPACE_NAME(carat));
+    
     
     return 0;
 }
@@ -131,7 +139,7 @@ static int add_region(void *state, nk_aspace_region_t *region)
         return -1;
     }
     
-    // check if region to insert overlap with existed region
+    // check if region to insert overlap with tracked region
     nk_aspace_region_t * overlap_ptr = mm_check_overlap(carat->reg_tracker, region);
     if (overlap_ptr) {
         DEBUG("Add region Failed: region Overlapping:\n"
@@ -198,6 +206,76 @@ static int protect_region(void *state, nk_aspace_region_t *region, nk_aspace_pro
     ASPACE_UNLOCK(carat);
     return 0;
 }
+
+
+/**
+ * Question: overalapping region is not legal in CARAT, right?
+ * */
+
+static int protection_check(void * state, nk_aspace_region_t * region) {
+
+    nk_aspace_carat_t *carat = (nk_aspace_carat_t *)state;
+    ASPACE_LOCK_CONF;
+    ASPACE_LOCK(carat);
+
+    char region_buf[REGION_STR_LEN];
+    region2str(region, region_buf);
+    
+    DEBUG("Check protection of region %s\n", region_buf);
+    // check region input validness
+    if (CARAT_INVALID(region)) {
+        DEBUG("Protection check Failed: INVALID input (%s): CARAT expects equal VA and PA\n", region_buf);
+        ASPACE_UNLOCK(carat);
+        return -1;
+    }
+    
+    /**
+     * Checking overlap
+     * case 1
+     * If @region is a subset of an tracked region, 
+     *      the overlap_ptr should be deterministic;
+     *      overlap_ptr = tracked region that contains @region
+     *      return 0
+     * 
+     * case 2
+     * If @region has intersection with several regions (at most two), but no single of them completely contains @region
+     *      overlap_ptr may be any of them. 
+     *      Yet, it is not a subset of the tracked region. 
+     *      return -1
+     * 
+     * case 3
+     * If @region has no inteserction with any tracked regions, 
+     *      overlap_ptr = NULL
+     *      return -1
+     * */
+    nk_aspace_region_t * overlap_ptr = mm_check_overlap(carat->reg_tracker, region);
+    
+    region2str(overlap_ptr, region_buf);
+
+    // case 3
+    if (overlap_ptr == NULL) {
+        DEBUG("Protection check NOT passed! No overalapping region!\n");
+        ASPACE_UNLOCK(carat);
+        return -1;
+    }
+
+    // case 1
+    if (overlap_ptr->pa_start <= region->pa_start 
+        && overlap_ptr->pa_start + overlap_ptr->len_bytes >= region->pa_start + region->len_bytes 
+        && PERMISSION_LEQ(region, overlap_ptr)
+    ) { 
+        
+        DEBUG("Protection check passed! contained by %s\n", region_buf);
+        ASPACE_UNLOCK(carat);
+        return 0;
+    }
+
+    // case 2
+    DEBUG("Protection check NOT passed! overlapped region = %s\n", region_buf);
+    ASPACE_UNLOCK(carat);
+    return -1;
+}
+
 
 static int move_region(void *state, nk_aspace_region_t *cur_region, nk_aspace_region_t *new_region) 
 {
@@ -281,6 +359,7 @@ static nk_aspace_interface_t carat_interface = {
     .add_region = add_region,
     .remove_region = remove_region,
     .protect_region = protect_region,
+    .protection_check = protection_check,
     .move_region = move_region,
     .switch_from = switch_from,
     .switch_to = switch_to,
