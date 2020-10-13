@@ -187,15 +187,14 @@ int overlap_helper(nk_aspace_region_t * regionA, nk_aspace_region_t * regionB){
 
 int region2str(nk_aspace_region_t * region,  char * str) {
     if (region == NULL){
-        snprintf(str, REGION_STR_LEN,"NULL");
+        sprintf(str, "NULL");
     } else {
-        snprintf(str, REGION_STR_LEN,"(VA=0x%p to PA=0x%p, len=%lx, prot=%lx)", 
+        sprintf(str, "(VA=0x%p to PA=0x%p, len=%lx, prot=%lx)", 
             region->va_start,
             region->pa_start,
             region->len_bytes,
             region->protect.flags
         );
-        
     }
 
     int len = strlen(str);

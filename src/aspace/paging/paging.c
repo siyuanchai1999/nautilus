@@ -465,7 +465,7 @@ static int remove_region(void *state, nk_aspace_region_t *region)
     if (NK_ASPACE_GET_PIN(region->protect.flags)) {
         char buf[REGION_STR_LEN];
         region2str(region, buf);
-        DEBUG("Cannot remove pinned region%s\n", buf);
+        ERROR("Cannot remove pinned region%s\n", buf);
         ASPACE_UNLOCK(p);
         return -1;
     }
