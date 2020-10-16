@@ -806,7 +806,7 @@ shell (void * in, void ** out)
 // ENABLE THIS CODE TO START TO TEST YOUR PAGING IMPLEMENTATION
 #ifdef NAUT_CONFIG_ASPACES
 
-#if 0
+#if 1
     /**
      * Paging test
      * */
@@ -1381,6 +1381,8 @@ shell (void * in, void ** out)
     
 #endif
 
+#if 0
+    // CARAT ASPACE + Protection Check test
     nk_aspace_characteristics_t c;
     if (nk_aspace_query("carat",&c)) {
         nk_vc_printf("failed to find carat implementation\n");
@@ -1512,6 +1514,7 @@ shell (void * in, void ** out)
         goto vc_setup;
     }
 
+#endif
 #endif
 
     

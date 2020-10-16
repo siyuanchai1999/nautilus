@@ -31,9 +31,25 @@
 
 #include <nautilus/aspace.h>
 
+// PATH need to be fixed
 
-// need to be fixed
+#include "patching.h"
+// from Brian
+#include <nautilus/list.h>
+#ifdef NAUT_CONFIG_ASPACE_PAGING_REGION_RB_TREE
 #include "../paging/mm_rb_tree.h"
+
+#elif defined NAUT_CONFIG_ASPACE_PAGING_REGION_SPLAY_TREE
+#include "../paging/mm_splay_tree.h"
+
+#elif defined NAUT_CONFIG_ASPACE_PAGING_REGION_LINKED_LIST
+#include "../paging/mm_linked_list.h"
+
+#else
+#include "node_struct.h"
+
+#endif
+
 
 
 #ifndef NAUT_CONFIG_DEBUG_ASPACE_CARAT
@@ -46,13 +62,24 @@
 #define INFO(fmt, args...)   INFO_PRINT("aspace-carat: " fmt, ##args)
 
 #define ASPACE_LOCK_CONF uint8_t _aspace_lock_flags
-#define ASPACE_LOCK(a) _aspace_lock_flags = spin_lock_irq_save((a)->lock)
-#define ASPACE_TRY_LOCK(a) spin_try_lock_irq_save((a)->lock,&_aspace_lock_flags)
-#define ASPACE_UNLOCK(a) spin_unlock_irq_restore((a)->lock, _aspace_lock_flags)
+// Peter fix a bug with this line, TODO: change in paging.c
+#define ASPACE_LOCK(a) _aspace_lock_flags = spin_lock_irq_save(&((a))->lock)
+#define ASPACE_TRY_LOCK(a) spin_try_lock_irq_save(&((a)->lock),&_aspace_lock_flags)
+#define ASPACE_UNLOCK(a) spin_unlock_irq_restore(&((a)->lock), _aspace_lock_flags)
 #define ASPACE_UNIRQ(a) irq_enable_restore(_aspace_lock_flags);
+
 
 #define ASPACE_NAME(a) ((a)?(a)->aspace->name : "default")
 #define THREAD_NAME(t) ((!(t)) ? "(none)" : (t)->is_idle ? "(idle)" : (t)->name[0] ? (t)->name : "(noname)")
+
+#ifndef NAUT_CONFIG_DEBUG_ASPACE_CARAT
+#define REGION_FORMAT ""
+#define REGION(r)
+#else
+#define REGION_FORMAT "(VA=0x%p to PA=0x%p, len=%lx, prot=%lx)"
+#define REGION(r) (r)->va_start, (r)->pa_start, (r)->len_bytes, (r)->protect.flags
+#endif
+
 
 // ok if r1.permision <= r2.permission
 #define PERMISSION_LEQ(r1, r2) \
@@ -63,22 +90,50 @@
     &&  NK_ASPACE_GET_KERN(r1->protect.flags)  >= NK_ASPACE_GET_KERN(r2->protect.flags) \
     )
 
-typedef struct nk_aspace_carat {
-    // pointer to the abstract aspace that the
-    // rest of the kernel uses when dealing with this
-    // address space
-    nk_aspace_t *aspace;
+// typedef struct nk_aspace_carat {
+//     // pointer to the abstract aspace that the
+//     // rest of the kernel uses when dealing with this
+//     // address space
+//     nk_aspace_t *aspace;
     
-    // perhaps you will want to do concurrency control?
-    spinlock_t *  lock;
+//     // perhaps you will want to do concurrency control?
+//     spinlock_t *  lock;
 
-    // Here you probably will want your region set data structure 
-    // What should it be...
-    mm_struct_t * reg_tracker;
-    // Your characteristics
-    nk_aspace_characteristics_t chars;
+//     // Here you probably will want your region set data structure 
+//     // What should it be...
+//     mm_struct_t * reg_tracker;
+//     // Your characteristics
+//     nk_aspace_characteristics_t chars;
+
+// } nk_aspace_carat_t;
+
+typedef struct nk_aspace_carat_thread {
+    struct nk_thread * thread_ptr;
+    struct list_head thread_node;
+} nk_aspace_carat_thread_t;
+
+typedef struct nk_aspace_carat {
+  // pointer to the abstract aspace that the
+  // rest of the kernel uses when dealing with this
+  // address space
+  nk_aspace_t *aspace;
+
+  // perhaps you will want to do concurrency control?
+  spinlock_t  lock;
+
+  // Here you probably will want your region set data structure 
+  // What should it be...
+  mm_struct_t * mm;
+
+  // Your characteristics
+  nk_aspace_characteristics_t chars;
+
+  //We may need the list of threads
+//   struct list_head threads;
+    nk_aspace_carat_thread_t threads;
 
 } nk_aspace_carat_t;
+
 
 
 
@@ -108,7 +163,16 @@ static int add_thread(void *state)
     
     DEBUG("adding thread %d (%s) to address space %s\n", t->tid,THREAD_NAME(t), ASPACE_NAME(carat));
     
+    ASPACE_LOCK_CONF;
+    ASPACE_LOCK(carat);
     
+    nk_aspace_carat_thread_t * new_thread_wrapper = (nk_aspace_carat_thread_t *) malloc(sizeof(nk_aspace_carat_thread_t));
+    new_thread_wrapper->thread_ptr = t;
+
+    struct list_head * nelm = &new_thread_wrapper->thread_node;
+    // carat->threads
+    list_add_tail(nelm, &(carat->threads.thread_node));
+    ASPACE_UNLOCK(carat);
     return 0;
 }
 
@@ -118,8 +182,27 @@ static int remove_thread(void *state)
     struct nk_thread *t = get_cur_thread();
     
     DEBUG("removing thread %d (%s) from address space %s\n", t->tid, THREAD_NAME(t), ASPACE_NAME(carat));
-    
-    return 0;
+    ASPACE_LOCK_CONF;
+    ASPACE_LOCK(carat);
+
+    struct list_head *cur;
+    int failed = 1;
+    list_for_each(cur,&(carat->threads.thread_node)) {
+	// if (!strcmp(list_entry(cur,struct nk_aspace,aspace_list_node)->name,name)) { 
+	//     target = list_entry(cur,struct nk_aspace, aspace_list_node);
+	//     break;
+	// }
+        nk_aspace_carat_thread_t * wrapper_ptr = list_entry(cur, nk_aspace_carat_thread_t, thread_node);
+        if (wrapper_ptr->thread_ptr == t) {
+            list_del(cur);
+            free(wrapper_ptr);
+            failed = 0; 
+            break;
+        }
+    }
+
+    ASPACE_UNLOCK(carat);
+    return failed;
 }
 
 static int add_region(void *state, nk_aspace_region_t *region)
@@ -140,7 +223,7 @@ static int add_region(void *state, nk_aspace_region_t *region)
     }
     
     // check if region to insert overlap with tracked region
-    nk_aspace_region_t * overlap_ptr = mm_check_overlap(carat->reg_tracker, region);
+    nk_aspace_region_t * overlap_ptr = mm_check_overlap(carat->mm, region);
     if (overlap_ptr) {
         DEBUG("Add region Failed: region Overlapping:\n"
                 "\t(va=%016lx pa=%016lx len=%lx, prot=%lx) \n"
@@ -152,8 +235,8 @@ static int add_region(void *state, nk_aspace_region_t *region)
         return -1;
     }
 
-    mm_insert(carat->reg_tracker, region);
-    mm_show(carat->reg_tracker);
+    mm_insert(carat->mm, region);
+    mm_show(carat->mm);
     
     ASPACE_UNLOCK(carat);
     return 0;
@@ -183,7 +266,7 @@ static int remove_region(void *state, nk_aspace_region_t *region)
     }
 
     uint8_t check_flag = VA_CHECK | PA_CHECK | LEN_CHECK | PROTECT_CHECK;
-    int remove_failed = mm_remove(carat->reg_tracker, region, check_flag);
+    int remove_failed = mm_remove(carat->mm, region, check_flag);
 
     if (remove_failed) {
         DEBUG("Remove region Failed: %s\n", region_buf);
@@ -248,7 +331,7 @@ static int protection_check(void * state, nk_aspace_region_t * region) {
      *      overlap_ptr = NULL
      *      return -1
      * */
-    nk_aspace_region_t * overlap_ptr = mm_check_overlap(carat->reg_tracker, region);
+    nk_aspace_region_t * overlap_ptr = mm_check_overlap(carat->mm, region);
     
     region2str(overlap_ptr, region_buf);
 
@@ -284,6 +367,33 @@ static int move_region(void *state, nk_aspace_region_t *cur_region, nk_aspace_re
     ASPACE_LOCK(carat);
 
     // TODO: move region with data structure
+    
+    // sanity checks
+    if (CARAT_INVALID(cur_region)) {
+        ASPACE_UNLOCK(carat);
+        return -1;
+    }
+
+    if (CARAT_INVALID(new_region)) {
+        ASPACE_UNLOCK(carat);
+        return -1;
+    }
+
+    if (cur_region->len_bytes != new_region->len_bytes) {
+        ASPACE_UNLOCK(carat);
+        return -1;
+    }
+
+    // call CARAT runtime
+    int res = nk_carat_move_region(cur_region->pa_start, new_region->pa_start, cur_region->len_bytes);
+    if (res) {
+        ASPACE_UNLOCK(carat);
+        return -1;
+    }
+
+    // TODO: ask Peter if we need remove and insert new regions here or expect user to make those calls?
+
+    
     ASPACE_UNLOCK(carat);
     return 0;
 }
@@ -346,7 +456,7 @@ static int print(void *state, int detailed)
 
     if (detailed) {
         // print region set data structure here
-        mm_show(carat->reg_tracker);
+        mm_show(carat->mm);
         // perhaps print out all the page tables here...
     }
 
@@ -392,16 +502,31 @@ static struct nk_aspace *create(char *name, nk_aspace_characteristics_t *c)
     
     memset(carat,0,sizeof(*carat));
 
+    spinlock_init(&(carat->lock));
     // initialize spinlock for carat
-    carat->lock = (spinlock_t *) malloc(sizeof(spinlock_t));
-    if (!carat->lock) {
-        ERROR("cannot allocate spinlock for carat aspace %s at %p\n", name, carat);
-        return 0;
-    }
-    spinlock_init(carat->lock);
-    
+    // carat->lock = (spinlock_t *) malloc(sizeof(spinlock_t));
+    // if (!carat->lock) {
+    //     ERROR("cannot allocate spinlock for carat aspace %s at %p\n", name, carat);
+    //     return 0;
+    // }
+    // spinlock_init(carat->lock);
+    INIT_LIST_HEAD(&(carat->threads.thread_node));
+
     // initialize region dat structure
-    carat->reg_tracker = mm_rb_tree_create();
+#ifdef NAUT_CONFIG_ASPACE_PAGING_REGION_RB_TREE
+    carat->mm = mm_rb_tree_create();
+
+#elif defined NAUT_CONFIG_ASPACE_PAGING_REGION_SPLAY_TREE
+    carat->mm = mm_splay_tree_create();
+
+#elif defined NAUT_CONFIG_ASPACE_PAGING_REGION_LINKED_LIST
+    carat->mm = mm_llist_create();
+
+#else
+    carat->mm = mm_struct_create();
+
+#endif
+
     
     // Define characteristic
     carat->chars = *c;
@@ -409,7 +534,7 @@ static struct nk_aspace *create(char *name, nk_aspace_characteristics_t *c)
     carat->aspace = nk_aspace_register(name,
                     // we want both page faults and general protection faults (NO, no GPF)
                     //    NK_ASPACE_HOOK_PF | NK_ASPACE_HOOK_GPF,
-                        NK_ASPACE_HOOK_PF,
+                        NK_ASPACE_HOOK_GPF,
                     // our interface functions (see above)
                     &carat_interface,
                     // our state, which will be passed back
